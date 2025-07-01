@@ -2,7 +2,7 @@
 import os
 from generate_blog_post import generate_mlb_blog_post
 from audit_blog_post import audit_blog_post
-from generate_image import generate_image_description, generate_image
+from generate_image import generate_team_logos_for_matchup
 from mlb_data_fetcher import MLBDataFetcher
 import uuid
 import json
@@ -60,17 +60,25 @@ def main():
             save_to_file(game_directory, "optimized_post.txt", optimized_post)
             print("  ✅ Optimized blog post saved")
             
-            # Generate image description
-            print("  🎨 Creating image description...")
-            image_description = generate_image_description(topic)
-            save_to_file(game_directory, "image_description.txt", image_description)
-            print("  ✅ Image description generated")
+            # Generate team logos instead of AI images
+            print("  🏆 Getting team logos...")
+            away_team = game_data['away_team']
+            home_team = game_data['home_team']
             
-            # Generate image
-            print("  🖼️ Generating image with DALL-E...")
-            image_url = generate_image(image_description)
-            save_to_file(game_directory, "image_url.txt", image_url)
-            print(f"  ✅ Image generated: {image_url}")
+            team_logos = generate_team_logos_for_matchup(away_team, home_team)
+            
+            # Save team logo information
+            logo_info = f"""Away Team: {team_logos['away_team']}
+Away Logo: {team_logos['away_logo']}
+
+Home Team: {team_logos['home_team']}
+Home Logo: {team_logos['home_logo']}
+
+Matchup: {away_team} @ {home_team}"""
+            
+            save_to_file(game_directory, "team_logos.txt", logo_info)
+            save_to_file(game_directory, "image_url.txt", f"Away: {team_logos['away_logo']}\nHome: {team_logos['home_logo']}")
+            print(f"  ✅ Team logos saved: {away_team} & {home_team}")
             
             # Save game data for reference
             save_to_file(game_directory, "game_data.json", json.dumps(game_data, indent=2))
