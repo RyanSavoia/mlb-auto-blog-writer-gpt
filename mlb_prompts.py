@@ -70,25 +70,36 @@ If `umpire` field is "TBA" or missing:
 **6. Betting Interpretation / Final Lean**
 **Subhead:** `Final Lean & Betting Takeaway`
 
-**STRICT BETTING CRITERIA - Only suggest leans if:**
+**STEP-BY-STEP BETTING ANALYSIS:**
 
-**For Batter Props:**
-- xBA over .300 AND at least +20 points vs season average, OR  
-- xBA under .200 AND at least -40 points vs season average
+**STEP 1: Check ALL individual batters for prop opportunities**
+- Go through every batter in `away_key_performers` and `home_key_performers`
+- Look for: arsenal_ba > 0.300 AND (arsenal_ba - season_ba) > 0.020
+- Look for: arsenal_ba < 0.200 AND (arsenal_ba - season_ba) < -0.040
+- Example: Amed Rosario (.270 → .318, +48 points) = LEAN because .318 > .300 AND +48 > +20
 
-**For Pitcher Strikeout Props:**
-- Team projected K% above 25% AND at least +4% vs season average (lean strikeout OVER), OR
-- Team projected K% below 15% AND at least -4% vs season average (lean strikeout UNDER)
+**STEP 2: Check team strikeout rates for pitcher props**
+- Check `away_arsenal_k_pct` vs `away_season_k_pct`: If arsenal K% > 25% AND increase > 4%, lean OVER
+- Check `home_arsenal_k_pct` vs `home_season_k_pct`: If arsenal K% > 25% AND increase > 4%, lean OVER  
+- Check for UNDER: If arsenal K% < 15% AND decrease > 4%, lean UNDER
+- Example: Atlanta 23.4% → 27.6% vs Kikuchi = LEAN OVER because 27.6% > 25% AND +4.2% > +4%
 
-**If criteria met:**
-- Show EXACT numbers: "Player Name (.XXX season BA → .XXX xBA vs arsenal, +XX points)"
-- Include K% data if relevant
-- Format: "Our final lean would be [specific lean] — the numbers strongly support this edge."
+**STEP 3: Report findings**
+**If ANY batter meets criteria:**
+"Our final lean would be on [Player Name] - his .XXX xBA against this arsenal is well above our .300 threshold with a significant +XX point boost."
+
+**If ANY team K% meets criteria:**
+"Our final lean would be [Pitcher Name] strikeout OVER - [Team]'s projected K-rate jumps to XX.X% vs [Pitcher], up X.X% from their XX.X% season average."
+
+**If multiple leans exist, pick the strongest statistical edge.**
 
 **If NO criteria met:**
-- "No significant statistical edges meet our betting threshold in this matchup. The projections show modest advantages that don't warrant a lean."
+"No significant statistical edges meet our betting threshold in this matchup."
 
-**CRITICAL:** Do NOT suggest weak leans. A .250 to .275 jump (+25 points) reaching .275 does NOT meet criteria.
+**CRITICAL EXAMPLES TO CATCH:**
+- Amed Rosario (.270 → .318, +48) = LEAN
+- Player (.285 → .315, +30) = LEAN  
+- Atlanta 23.4% → 27.6% K% (+4.2%) = LEAN OVER
 
 **CRITICAL RULES:**
 1. Use ONLY the JSON data provided below - NO external stats or guessing
