@@ -143,20 +143,27 @@ def run_scheduler():
         time.sleep(60)
 
 def initialize_app():
-    """Initialize with first blog generation and start scheduler"""
+    """Initialize with Flask server first, then generate blogs in background"""
     print("🚀 Initializing MLB Blog Service")
-    
-    # Generate blogs immediately on startup
-    generate_daily_blogs()
     
     # Start background scheduler
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
     print("✅ Background scheduler started - will generate daily at 6 AM ET")
+    
+    # Generate blogs in background after Flask starts
+    def delayed_blog_generation():
+        time.sleep(5)  # Wait for Flask to start
+        generate_daily_blogs()
+    
+    blog_thread = threading.Thread(target=delayed_blog_generation, daemon=True)
+    blog_thread.start()
+    print("✅ Blog generation started in background")
 
 if __name__ == '__main__':
     initialize_app()
     
-    # Run Flask web server
+    # Start Flask web server immediately
     port = int(os.environ.get('PORT', 5000))
+    print(f"🌐 Starting Flask server on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
