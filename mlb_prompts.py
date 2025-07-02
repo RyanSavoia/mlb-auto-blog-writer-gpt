@@ -1,66 +1,127 @@
 # mlb_prompts.py
 import random
 
-MLB_BLOG_POST_PROMPTS = [
-    """
-    Write a comprehensive MLB betting preview blog post on "{topic}" using the following game data and keywords: {keywords}.
-    
-    Game Data:
-    {game_data}
-    
-    Structure the post with these sections:
-    1. Game Overview: Introduce the matchup and why it's compelling
-    2. Pitching Analysis: Deep dive into each starter's arsenal and effectiveness
-    3. Lineup Matchups: Analyze how each team's offense matches up against opposing pitching
-    4. Key Player Spotlights: Highlight 2-3 players with significant advantages/disadvantages
-    5. Umpire Impact: Discuss how the home plate umpire might influence the game
-    6. Betting Recommendations: Provide 2-3 specific betting angles with reasoning
-    7. Final Prediction: Give a confident take on the game outcome
-    
-    Make it engaging for baseball fans and bettors. Use statistics and data to support your analysis.
-    Include SEO-friendly headings and write 1500-2000 words.
-    """,
-    
-    """
-    Create an in-depth MLB game preview for "{topic}" focusing on advanced analytics and matchup advantages. Include keywords: {keywords}.
-    
-    Game Information:
-    {game_data}
-    
-    Organize with these sections:
-    1. Matchup Introduction: Set the stage with team contexts and stakes
-    2. Starting Pitcher Breakdown: Analyze arsenals, recent form, and matchup history
-    3. Offensive Approach Analysis: How each lineup should attack the opposing starter
-    4. X-Factor Players: Identify 3-4 players who could swing the game
-    5. Umpire Influence: Explain how the umpire's tendencies affect betting markets
-    6. Weather & Ballpark Factors: Consider environmental impacts (if relevant)
-    7. Best Bets & Props: Recommend specific wagers with confidence levels
-    8. Bottom Line: Conclude with your strongest conviction plays
-    
-    Write for knowledgeable baseball fans who bet on games. Be analytical but accessible.
-    Target 1500-2000 words with proper SEO structure.
-    """,
-    
-    """
-    Generate a detailed MLB betting guide for "{topic}" emphasizing data-driven insights. Target keywords: {keywords}.
-    
-    Available Data:
-    {game_data}
-    
-    Structure as follows:
-    1. Executive Summary: Quick-hit analysis for busy readers
-    2. Pitcher Arsenal Deep Dive: Break down each starter's strengths/weaknesses
-    3. Lineup Construction & Matchups: How batting orders exploit opposing pitching
-    4. Historical Context: Recent head-to-head trends and relevant statistics  
-    5. Umpire Report Card: How today's ump impacts key betting markets
-    6. Contrarian Angles: Identify where public might be wrong
-    7. Lock & Load Picks: Your highest confidence bets with rationale
-    8. Hedge Opportunities: How to manage risk during live betting
-    
-    Target serious baseball bettors who want actionable intelligence, not just opinions.
-    Write 1500-2000 words with clear headings and bullet points where appropriate.
-    """
-]
+# ✅ Used by generate_blog_post.py
+MLB_BLOG_PROMPT_TEMPLATE = """You're an expert MLB betting analyst and blog writer. You write sharp, stat-driven previews for baseball bettors.
+
+Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure:
+
+**1. Brief Intro**
+Set up the game in 2-3 sentences using the matchup and key angles from the data.
+
+**2. Pitcher Breakdown**
+**Subhead:** `Pitching Matchup: [Away Pitcher] vs [Home Pitcher]`
+
+Break into two parts:
+
+**[Away Pitcher Name] ([Away Team]):**
+- List ALL pitch types with EXACT usage percentages and velocities from `away_pitcher.arsenal`
+- Format: "Four-Seam Fastball (35% usage, 97.1 mph), Slider (18% usage, 87.0 mph), Splitter (14% usage, 84.7 mph)"
+- Interpretation: What style of pitcher (velocity-heavy, pitch-mix artist, etc.)
+- How their pitches match up: "The [Home Team] lineup averages .XXX this season with a projected xBA of .XXX vs [Away Pitcher]'s arsenal"
+
+**[Home Pitcher Name] ([Home Team]):**
+- Same detailed structure: List ALL pitches with exact usage % and mph from `home_pitcher.arsenal`
+- "The [Away Team] lineup averages .XXX this season with a projected xBA of .XXX vs [Home Pitcher]'s arsenal"
+
+**Example format:** "Mitch Spence throws 6 different pitches, headlined by a 97.1 mph fastball (35% usage) and a sharp slider (18%). His pitch diversity could cause issues for a lineup that struggles vs breaking balls."
+
+**3. Lineup Advantage vs Arsenal**
+**Subhead:** `Lineup Matchups & Batting Edges`
+
+For **Away Team vs Home Pitcher:**
+- Compare team averages: "The [Away Team] lineup averages .XXX this season but projects to .XXX vs [Home Pitcher]'s arsenal"
+- From `away_key_performers`, show:
+  - The batter with the BIGGEST INCREASE in xBA (if any)
+  - The batter with the BIGGEST DECREASE in xBA (if any)
+  - Format: Name: Season BA .XXX → xBA vs arsenal .XXX (+/- XX points), Season K% XX.X% → Arsenal K% XX.X% (+/- X.X%)
+- Skip batters with minimal changes (under 15 point differences)
+
+For **Home Team vs Away Pitcher:**
+- Same detailed structure using `home_key_performers`
+- Focus on biggest increase and biggest decrease only
+
+**Example format:** 
+"Tyler Soderstrom: Season BA .247 → xBA vs arsenal .272 (+25 points), Season K% 23.1% → Arsenal K% 20.5% (-2.6%)"
+
+**4. Lineup Strikeout Trends vs Arsenal**
+**Subhead:** `Strikeout Risks & Rewards`
+
+For each team:
+- Use `away_arsenal_k_pct` vs `away_season_k_pct` and `home_arsenal_k_pct` vs `home_season_k_pct`
+- Format: "The [Team]'s projected K-rate is [X]% vs [Pitcher] — up/down [Y]% from their [Z]% season average."
+- Interpretation: Higher = potential K prop value, Lower = potential contact play
+
+**5. Umpire Influence**
+**Subhead:** `Behind the Plate: [Umpire Name]`
+
+If `umpire` field is NOT "TBA" and umpire data exists:
+- Show exact umpire name from `umpire` field
+- Convert `umpire_k_boost` from multiplier to percentage: 1.11x = "+11% strikeouts"
+- Convert `umpire_bb_boost` from multiplier to percentage: 1.03x = "+3% walks"
+- IMPORTANT: Higher strikeouts = pitcher-friendly, Higher walks = hitter-friendly
+- Classify correctly: If K% up and BB% up = "mixed tendencies", if K% up and BB% down = "pitcher-friendly", if K% down and BB% up = "hitter-friendly"
+
+If `umpire` field is "TBA" or missing:
+- "Umpire assignment has not been announced, which makes prop volatility a concern."
+
+**CRITICAL:** Only use umpire data that exists in the JSON. Do NOT guess or assume umpire tendencies. Remember: walks help hitters, not pitchers.
+
+**6. Betting Interpretation / Final Lean**
+**Subhead:** `Final Lean & Betting Takeaway`
+
+**STRICT BETTING CRITERIA - Only suggest leans if:**
+
+**For Batter Props:**
+- xBA over .300 AND at least +20 points vs season average, OR  
+- xBA under .200 AND at least -40 points vs season average
+
+**For Pitcher Strikeout Props:**
+- Team projected K% above 25% AND at least +4% vs season average (lean strikeout OVER), OR
+- Team projected K% below 15% AND at least -4% vs season average (lean strikeout UNDER)
+
+**If criteria met:**
+- Show EXACT numbers: "Player Name (.XXX season BA → .XXX xBA vs arsenal, +XX points)"
+- Include K% data if relevant
+- Format: "Our final lean would be [specific lean] — the numbers strongly support this edge."
+
+**If NO criteria met:**
+- "No significant statistical edges meet our betting threshold in this matchup. The projections show modest advantages that don't warrant a lean."
+
+**CRITICAL:** Do NOT suggest weak leans. A .250 to .275 jump (+25 points) reaching .275 does NOT meet criteria.
+
+**CRITICAL RULES:**
+1. Use ONLY the JSON data provided below - NO external stats or guessing
+2. If data is missing, say "data not available" rather than inventing
+3. Convert all multipliers (1.15x) to percentages (+15%)
+4. Focus on the biggest statistical edges from the data
+5. Keep tone sharp and analytical, avoid generic phrases
+6. ALWAYS include exact pitch usage percentages and velocities from arsenal data
+7. Show exact season BA vs projected xBA for all lineup comparisons
+8. Only highlight batters with biggest increases AND biggest decreases (skip minimal changes)
+9. Apply strict betting criteria - don't suggest weak leans
+10. Remember: walks help hitters, strikeouts help pitchers
+
+Blog Title: {topic}
+Target Keywords: {keywords}
+
+Game Data (JSON):
+{game_data}
+"""
 
 def get_random_mlb_blog_post_prompt():
-    return random.choice(MLB_BLOG_POST_PROMPTS)
+    return MLB_BLOG_PROMPT_TEMPLATE
+
+# ✅ Used by audit_blog_post.py
+AUDIT_BLOG_POST_PROMPT = """You're a professional sports blog editor reviewing an AI-written MLB matchup preview. Your job is to:
+
+1. Tighten up the structure and flow
+2. Remove repetition or filler language
+3. Preserve **data-driven insight and interpretation**
+4. Avoid generic phrases like "should be a good one" or "fans won't want to miss it"
+5. Keep the tone sharp, analytical, and focused on the key edge or angle
+
+Return only the improved blog post. Here's the original:
+
+{blog_post}
+"""
