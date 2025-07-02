@@ -67,38 +67,91 @@ class MLBDataFetcher:
         return "; ".join(arsenal_text)
 
     def calculate_lineup_advantage(self, key_matchups, pitcher_name):
-        """Calculate if lineup has advantage vs pitcher"""
+        """Calculate comprehensive lineup stats vs specific pitcher including K% data"""
         pitcher_matchups = [m for m in key_matchups if m.get('vs_pitcher') == pitcher_name]
         reliable_matchups = [m for m in pitcher_matchups if m.get('reliability', '').upper() in ['MEDIUM', 'HIGH']]
         
         if not reliable_matchups:
-            return 0.0, []
+            return {
+                'ba_advantage': 0.0,
+                'k_advantage': 0.0,
+                'season_ba': 0.250,
+                'arsenal_ba': 0.250,
+                'season_k_pct': 22.5,
+                'arsenal_k_pct': 22.5,
+                'top_performers': []
+            }
         
-        ba_diffs = []
+        season_bas = []
+        season_k_pcts = []
+        arsenal_bas = []
+        arsenal_k_pcts = []
         top_performers = []
         
         for matchup in reliable_matchups:
             baseline = matchup.get('baseline_stats', {})
-            season_ba = baseline.get('season_avg', 0.250) if baseline else 0.250
-            arsenal_ba = matchup.get('weighted_est_ba', 0.250)
-            ba_diff = arsenal_ba - season_ba
-            ba_diffs.append(ba_diff)
+            if baseline:
+                season_ba = baseline.get('season_avg', 0.250)
+                season_k = baseline.get('season_k_pct', 22.5)
+                season_bas.append(season_ba)
+                season_k_pcts.append(season_k)
+            else:
+                season_ba = 0.250
+                season_k = 22.5
             
-            # Track significant performers
-            if abs(ba_diff) > 0.020:  # 20+ point difference
+            arsenal_ba = matchup.get('weighted_est_ba', 0.250)
+            arsenal_k = matchup.get('weighted_k_rate', 22.5)
+            arsenal_bas.append(arsenal_ba)
+            arsenal_k_pcts.append(arsenal_k)
+            
+            # Calculate advantages
+            ba_diff = arsenal_ba - season_ba
+            k_diff = arsenal_k - season_k  # Positive = more strikeouts (bad for batter)
+            
+            # Track significant performers (20+ point BA difference OR 3%+ K difference)
+            if abs(ba_diff) > 0.020 or abs(k_diff) > 3.0:
                 batter = matchup.get('batter', 'Unknown')
                 batter_name = batter.replace(', ', ' ').split()
                 batter_display = f"{batter_name[1]} {batter_name[0]}" if len(batter_name) >= 2 else batter
+                
+                # Determine advantage type
+                if ba_diff > 0.020:
+                    advantage = 'strong_ba'  # Good batting average advantage
+                elif ba_diff < -0.020:
+                    advantage = 'poor_ba'   # Poor batting average matchup
+                elif k_diff < -3.0:
+                    advantage = 'low_k'     # Less likely to strike out
+                elif k_diff > 3.0:
+                    advantage = 'high_k'    # More likely to strike out
+                else:
+                    advantage = 'moderate'
                 
                 top_performers.append({
                     'name': batter_display,
                     'season_ba': season_ba,
                     'arsenal_ba': arsenal_ba,
-                    'advantage': 'strong' if ba_diff > 0.020 else 'poor'
+                    'season_k': season_k,
+                    'arsenal_k': arsenal_k,
+                    'ba_diff': ba_diff,
+                    'k_diff': k_diff,
+                    'advantage': advantage
                 })
         
-        avg_advantage = sum(ba_diffs) / len(ba_diffs) if ba_diffs else 0.0
-        return avg_advantage, top_performers
+        # Calculate team averages
+        avg_season_ba = sum(season_bas) / len(season_bas) if season_bas else 0.250
+        avg_season_k = sum(season_k_pcts) / len(season_k_pcts) if season_k_pcts else 22.5
+        avg_arsenal_ba = sum(arsenal_bas) / len(arsenal_bas)
+        avg_arsenal_k = sum(arsenal_k_pcts) / len(arsenal_k_pcts)
+        
+        return {
+            'ba_advantage': avg_arsenal_ba - avg_season_ba,
+            'k_advantage': avg_arsenal_k - avg_season_k,  # Positive = more Ks (bad for lineup)
+            'season_ba': avg_season_ba,
+            'arsenal_ba': avg_arsenal_ba,
+            'season_k_pct': avg_season_k,
+            'arsenal_k_pct': avg_arsenal_k,
+            'top_performers': top_performers
+        }
 
     def get_blog_topics_from_games(self):
         """Generate blog topics from current MLB games"""
@@ -129,15 +182,15 @@ class MLBDataFetcher:
                 home_pitcher_name = home_pitcher_data.get('name', 'Unknown').replace(', ', ' ').split()
                 home_pitcher_display = f"{home_pitcher_name[1]} {home_pitcher_name[0]}" if len(home_pitcher_name) >= 2 else home_pitcher_data.get('name', 'Unknown')
                 
-                # Calculate lineup advantages
+                # Calculate comprehensive lineup advantages (including K% data)
                 key_matchups = game_report['key_matchups']
-                away_advantage, away_performers = self.calculate_lineup_advantage(key_matchups, home_pitcher_data['name'])
-                home_advantage, home_performers = self.calculate_lineup_advantage(key_matchups, away_pitcher_data['name'])
+                away_lineup_stats = self.calculate_lineup_advantage(key_matchups, home_pitcher_data['name'])
+                home_lineup_stats = self.calculate_lineup_advantage(key_matchups, away_pitcher_data['name'])
                 
                 # Find umpire
                 umpire = self.find_game_umpire(umpires, matchup)
                 
-                # Create comprehensive game data
+                # Create comprehensive game data with K% information
                 game_data = {
                     'matchup': matchup,
                     'away_team': away_team,
@@ -150,10 +203,23 @@ class MLBDataFetcher:
                         'name': home_pitcher_display,
                         'arsenal': self.format_pitcher_arsenal(home_pitcher_data)
                     },
-                    'away_lineup_advantage': away_advantage,
-                    'home_lineup_advantage': home_advantage,
-                    'away_key_performers': away_performers,
-                    'home_key_performers': home_performers,
+                    # Away lineup vs home pitcher
+                    'away_lineup_advantage': away_lineup_stats['ba_advantage'],
+                    'away_lineup_k_advantage': away_lineup_stats['k_advantage'],
+                    'away_season_ba': away_lineup_stats['season_ba'],
+                    'away_arsenal_ba': away_lineup_stats['arsenal_ba'],
+                    'away_season_k_pct': away_lineup_stats['season_k_pct'],
+                    'away_arsenal_k_pct': away_lineup_stats['arsenal_k_pct'],
+                    'away_key_performers': away_lineup_stats['top_performers'],
+                    # Home lineup vs away pitcher
+                    'home_lineup_advantage': home_lineup_stats['ba_advantage'],
+                    'home_lineup_k_advantage': home_lineup_stats['k_advantage'],
+                    'home_season_ba': home_lineup_stats['season_ba'],
+                    'home_arsenal_ba': home_lineup_stats['arsenal_ba'],
+                    'home_season_k_pct': home_lineup_stats['season_k_pct'],
+                    'home_arsenal_k_pct': home_lineup_stats['arsenal_k_pct'],
+                    'home_key_performers': home_lineup_stats['top_performers'],
+                    # Umpire data
                     'umpire': umpire['umpire'] if umpire else 'TBA',
                     'umpire_k_boost': umpire['k_boost'] if umpire else '1.0x',
                     'umpire_bb_boost': umpire['bb_boost'] if umpire else '1.0x'
@@ -171,9 +237,12 @@ class MLBDataFetcher:
                     "lineup matchups", "umpire analysis"
                 ]
                 
-                # Add situational keywords
-                if abs(away_advantage) > 0.015 or abs(home_advantage) > 0.015:
+                # Add situational keywords based on significant advantages
+                if abs(away_lineup_stats['ba_advantage']) > 0.015 or abs(home_lineup_stats['ba_advantage']) > 0.015:
                     keywords.extend(["pitcher advantage", "matchup edge"])
+                
+                if abs(away_lineup_stats['k_advantage']) > 3.0 or abs(home_lineup_stats['k_advantage']) > 3.0:
+                    keywords.extend(["strikeout props", "contact advantage"])
                 
                 if umpire and umpire['umpire'] != 'TBA':
                     k_multiplier = float(umpire['k_boost'].replace('x', ''))
