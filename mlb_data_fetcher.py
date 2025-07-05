@@ -70,26 +70,14 @@ class MLBDataFetcher:
             
         away_team, home_team = matchup.split(' @ ')
         
-        # Create team mapping from full names to abbreviations
-        team_mapping = {
-            'TB': 'TB Rays', 'MIN': 'MIN Twins', 'STL': 'STL Cardinals', 'CHC': 'CHI Cubs',
-            'LAA': 'LA Angels', 'TOR': 'TOR Blue Jays', 'CIN': 'CIN Reds', 'PHI': 'PHI Phillies',
-            'BOS': 'BOS Red Sox', 'WSH': 'WAS Nationals', 'NYY': 'NY Yankees', 'NYM': 'NY Mets',
-            'MIL': 'MIL Brewers', 'MIA': 'MIA Marlins', 'KC': 'KC Royals', 'ARI': 'ARI Diamondbacks',
-            'BAL': 'BAL Orioles', 'ATL': 'ATL Braves', 'DET': 'DET Tigers', 'CLE': 'CLE Guardians',
-            'HOU': 'HOU Astros', 'LAD': 'LA Dodgers', 'CWS': 'CHI White Sox', 'COL': 'COL Rockies',
-            'TEX': 'TEX Rangers', 'SD': 'SD Padres', 'SF': 'SF Giants', 'OAK': 'Athletics',
-            'PIT': 'PIT Pirates', 'SEA': 'SEA Mariners'
-        }
-        
-        # Find matching betting game
+        # Find matching betting game by checking if team codes are in the full team names
         for game in betting_games:
             betting_away = game.get('away_team', '')
             betting_home = game.get('home_team', '')
             
-            # Check if teams match (either way)
-            if (away_team in betting_away and home_team in betting_home) or \
-               (away_team in betting_home and home_team in betting_away):
+            # Check if the short codes match the start of the full names
+            # e.g., "TB" matches "TB Rays" and "MIN" matches "MIN Twins"
+            if (betting_away.startswith(away_team) and betting_home.startswith(home_team)):
                 return game
         
         return None
