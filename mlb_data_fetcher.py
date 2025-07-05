@@ -306,8 +306,17 @@ class MLBDataFetcher:
                     'umpire_bb_boost': umpire['bb_boost'] if umpire else '1.0x'
                 }
                 
-                # Generate topic and keywords based on game analysis
-                topic = f"{away_team} vs {home_team} MLB Betting Preview"
+                # Generate topic using full team names from betting data if available
+                if betting_game:
+                    betting_away = betting_game.get('away_team', away_team)
+                    betting_home = betting_game.get('home_team', home_team)
+                    # Extract just the team name (last word) from "TB Rays" → "Rays"
+                    away_display = betting_away.split()[-1] if ' ' in betting_away else away_team
+                    home_display = betting_home.split()[-1] if ' ' in betting_home else home_team
+                    topic = f"{away_display} at {home_display} MLB Betting Preview"
+                else:
+                    # Fallback to short codes if no betting data
+                    topic = f"{away_team} at {home_team} MLB Betting Preview"
                 
                 # Dynamic keywords based on game situation
                 keywords = [
