@@ -34,6 +34,9 @@ def generate_daily_blogs():
         print("❌ No games available for blog generation")
         return
     
+    # ✅ NEW: Sort blog topics by game time (earliest to latest)
+    blog_topics.sort(key=lambda x: x['game_data'].get('game_time', 'ZZZ'))
+    
     base_directory = "mlb_blog_posts"
     date_str = datetime.now().strftime("%Y-%m-%d")
     daily_directory = os.path.join(base_directory, date_str)
@@ -48,7 +51,7 @@ def generate_daily_blogs():
         keywords = blog_topic['keywords']
         game_data = blog_topic['game_data']
         
-        print(f"\n📝 Processing game {i}/{len(blog_topics)}: {game_data['matchup']}")
+        print(f"\n📝 Processing game {i}/{len(blog_topics)}: {game_data['matchup']} at {game_data.get('game_time', 'TBD')}")
         
         # Create directory for the specific game
         safe_matchup = game_data['matchup'].replace(' @ ', '_vs_').replace(' ', '_')
