@@ -7,6 +7,7 @@ class MLBDataFetcher:
     def __init__(self):
         self.mlb_api_url = "https://mlb-matchup-api-savant.onrender.com/latest"
         self.umpire_api_url = "https://umpire-json-api.onrender.com"
+        self.betting_api_url = "https://draftkings-splits-scraper-webservice.onrender.com/mlb"
     
     def get_mlb_data(self):
         """Fetch MLB matchup data"""
@@ -34,6 +35,19 @@ class MLBDataFetcher:
             print(f"❌ Error fetching umpire data: {e}")
             return []
 
+    def get_betting_data(self):
+        """Fetch betting odds and splits data"""
+        try:
+            print("🌐 Fetching betting data...")
+            response = requests.get(self.betting_api_url, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            print(f"✅ Got betting data for {len(data.get('games', []))} games")
+            return data.get('games', [])
+        except Exception as e:
+            print(f"❌ Error fetching betting data: {e}")
+            return []
+
     def find_game_umpire(self, umpires, matchup):
         """Find the umpire for a specific game matchup"""
         for ump in umpires:
@@ -46,6 +60,37 @@ class MLBDataFetcher:
                 ump_matchup = ump.get('matchup', '-')
                 if away_team in ump_matchup and home_team in ump_matchup:
                     return ump
+        
+        return None
+
+    def find_game_betting_data(self, betting_games, matchup):
+        """Find betting data for a specific game matchup"""
+        if ' @ ' not in matchup:
+            return None
+            
+        away_team, home_team = matchup.split(' @ ')
+        
+        # Create team mapping from full names to abbreviations
+        team_mapping = {
+            'TB': 'TB Rays', 'MIN': 'MIN Twins', 'STL': 'STL Cardinals', 'CHC': 'CHI Cubs',
+            'LAA': 'LA Angels', 'TOR': 'TOR Blue Jays', 'CIN': 'CIN Reds', 'PHI': 'PHI Phillies',
+            'BOS': 'BOS Red Sox', 'WSH': 'WAS Nationals', 'NYY': 'NY Yankees', 'NYM': 'NY Mets',
+            'MIL': 'MIL Brewers', 'MIA': 'MIA Marlins', 'KC': 'KC Royals', 'ARI': 'ARI Diamondbacks',
+            'BAL': 'BAL Orioles', 'ATL': 'ATL Braves', 'DET': 'DET Tigers', 'CLE': 'CLE Guardians',
+            'HOU': 'HOU Astros', 'LAD': 'LA Dodgers', 'CWS': 'CHI White Sox', 'COL': 'COL Rockies',
+            'TEX': 'TEX Rangers', 'SD': 'SD Padres', 'SF': 'SF Giants', 'OAK': 'Athletics',
+            'PIT': 'PIT Pirates', 'SEA': 'SEA Mariners'
+        }
+        
+        # Find matching betting game
+        for game in betting_games:
+            betting_away = game.get('away_team', '')
+            betting_home = game.get('home_team', '')
+            
+            # Check if teams match (either way)
+            if (away_team in betting_away and home_team in betting_home) or \
+               (away_team in betting_home and home_team in betting_away):
+                return game
         
         return None
 
@@ -153,10 +198,53 @@ class MLBDataFetcher:
             'top_performers': top_performers
         }
 
+    def format_betting_info(self, betting_game):
+        """Format betting odds and splits into a readable sentence"""
+        if not betting_game or 'markets' not in betting_game:
+            return "Betting odds not available for this game."
+        
+        moneyline = betting_game['markets'].get('Moneyline', [])
+        if not moneyline or len(moneyline) < 2:
+            return "Betting odds not available for this game."
+        
+        # Find favorite and underdog
+        favorite = None
+        underdog = None
+        
+        for team_bet in moneyline:
+            odds = team_bet.get('odds', '+100')
+            if odds.startswith('−') or odds.startswith('-'):  # Favorite
+                favorite = team_bet
+            else:  # Underdog
+                underdog = team_bet
+        
+        if not favorite or not underdog:
+            return "Betting odds not available for this game."
+        
+        # Determine which team has more money (higher handle%)
+        fav_handle = int(favorite['handle_pct'].replace('%', ''))
+        und_handle = int(underdog['handle_pct'].replace('%', ''))
+        
+        if fav_handle > und_handle:
+            money_team = favorite['team']
+            money_pct = favorite['handle_pct']
+        else:
+            money_team = underdog['team']
+            money_pct = underdog['handle_pct']
+        
+        # Format the sentence
+        fav_team = favorite['team']
+        fav_odds = favorite['odds']
+        und_team = underdog['team']
+        und_odds = underdog['odds']
+        
+        return f"DraftKings has {fav_team} as a {fav_odds} favorite and {und_team} as a {und_odds} underdog, with {money_pct} of the money backing {money_team}."
+
     def get_blog_topics_from_games(self):
         """Generate blog topics from current MLB games"""
         mlb_reports = self.get_mlb_data()
         umpires = self.get_umpire_data()
+        betting_games = self.get_betting_data()
         
         if not mlb_reports:
             return []
@@ -190,11 +278,16 @@ class MLBDataFetcher:
                 # Find umpire
                 umpire = self.find_game_umpire(umpires, matchup)
                 
+                # Find betting data
+                betting_game = self.find_game_betting_data(betting_games, matchup)
+                
                 # Create comprehensive game data with K% information
                 game_data = {
                     'matchup': matchup,
                     'away_team': away_team,
                     'home_team': home_team,
+                    'game_time': betting_game.get('time', 'TBD') if betting_game else 'TBD',
+                    'betting_info': self.format_betting_info(betting_game),
                     'away_pitcher': {
                         'name': away_pitcher_display,
                         'arsenal': self.format_pitcher_arsenal(away_pitcher_data)
