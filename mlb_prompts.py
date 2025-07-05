@@ -6,6 +6,14 @@ MLB_BLOG_PROMPT_TEMPLATE = """You're an expert MLB betting analyst and blog writ
 
 Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure:
 
+**TITLE:** Use the provided topic as the title
+
+**GAME TIME:** Include the game time from the data immediately after the title
+Format: "Game Time: [time from game_time field]"
+
+**BETTING LINE:** Include the betting information from the data immediately after the game time
+Use the exact text from the `betting_info` field
+
 **1. Brief Intro**
 Set up the game in 2-3 sentences using the matchup and key angles from the data.
 
@@ -112,6 +120,8 @@ If `umpire` field is "TBA" or missing:
 8. Only highlight batters with biggest increases AND biggest decreases (skip minimal changes)
 9. Apply strict betting criteria - don't suggest weak leans
 10. Remember: walks help hitters, strikeouts help pitchers
+11. ALWAYS include the game time right after the title
+12. ALWAYS include the betting information right after the game time
 
 Blog Title: {topic}
 Target Keywords: {keywords}
@@ -131,6 +141,7 @@ AUDIT_BLOG_POST_PROMPT = """You're a professional sports blog editor reviewing a
 3. Preserve **data-driven insight and interpretation**
 4. Avoid generic phrases like "should be a good one" or "fans won't want to miss it"
 5. Keep the tone sharp, analytical, and focused on the key edge or angle
+6. Ensure the game time and betting information are properly formatted and positioned
 
 Return only the improved blog post. Here's the original:
 
