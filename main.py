@@ -20,6 +20,35 @@ def save_to_file(directory, filename, content):
     with open(os.path.join(directory, filename), 'w', encoding='utf-8') as file:
         file.write(content)
 
+def parse_game_time_for_sorting(time_str):
+    """Parse game time for proper chronological sorting"""
+    if not time_str or time_str == 'TBD':
+        return 9999  # Sort TBD games to the end
+    
+    try:
+        # Handle format like "7/8, 06:40PM" or just "06:40PM"
+        if ',' in time_str:
+            time_part = time_str.split(',')[1].strip()
+        else:
+            time_part = time_str.strip()
+        
+        # Convert to 24-hour format for proper sorting
+        if 'PM' in time_part:
+            hour = int(time_part.split(':')[0])
+            if hour != 12:
+                hour += 12
+            minute = int(time_part.split(':')[1].replace('PM', ''))
+        else:  # AM
+            hour = int(time_part.split(':')[0])
+            if hour == 12:
+                hour = 0
+            minute = int(time_part.split(':')[1].replace('AM', ''))
+        
+        return hour * 100 + minute  # Returns like 1840 for 6:40PM
+    except Exception as e:
+        print(f"⚠️ Error parsing time '{time_str}': {e}")
+        return 9999  # Sort unparseable times to end
+
 def generate_daily_blogs():
     """Generate all blogs for today - same as your current main.py"""
     print(f"🚀 Starting daily blog generation at {datetime.now()}")
@@ -34,8 +63,14 @@ def generate_daily_blogs():
         print("❌ No games available for blog generation")
         return
     
-    # ✅ NEW: Sort blog topics by game time (earliest to latest)
-    blog_topics.sort(key=lambda x: x['game_data'].get('game_time', 'ZZZ'))
+    # ✅ FIXED: Use proper time-based sorting instead of alphabetical
+    print(f"🔄 Sorting {len(blog_topics)} games by time...")
+    blog_topics.sort(key=lambda x: parse_game_time_for_sorting(x['game_data'].get('game_time', 'TBD')))
+    
+    # Debug: Print sorted order
+    for i, topic in enumerate(blog_topics):
+        game_time = topic['game_data'].get('game_time', 'TBD')
+        print(f"  {i+1}. {topic['topic']} - {game_time}")
     
     base_directory = "mlb_blog_posts"
     date_str = datetime.now().strftime("%Y-%m-%d")
@@ -53,10 +88,11 @@ def generate_daily_blogs():
         
         print(f"\n📝 Processing game {i}/{len(blog_topics)}: {game_data['matchup']} at {game_data.get('game_time', 'TBD')}")
         
-        # Create directory for the specific game
+        # ✅ FIXED: Add time-based prefix to preserve order in filesystem
+        time_prefix = f"{i:02d}_"  # 01_, 02_, 03_, etc.
         safe_matchup = game_data['matchup'].replace(' @ ', '_vs_').replace(' ', '_')
         random_hash = uuid.uuid4().hex[:8]
-        game_directory = os.path.join(daily_directory, f"{safe_matchup}_{random_hash}")
+        game_directory = os.path.join(daily_directory, f"{time_prefix}{safe_matchup}_{random_hash}")
         
         try:
             # Generate MLB-specific blog post
@@ -106,22 +142,28 @@ def display_blogs():
     all_blogs = []
     
     if os.path.exists(blog_dir):
-        # Get all game folders
-        for folder in os.listdir(blog_dir):
+        # ✅ FIXED: Sort folders to preserve chronological order
+        folders = sorted([f for f in os.listdir(blog_dir) if os.path.isdir(os.path.join(blog_dir, f))])
+        print(f"📁 Found {len(folders)} blog folders in chronological order")
+        
+        for folder in folders:
             folder_path = os.path.join(blog_dir, folder)
-            if os.path.isdir(folder_path):
-                optimized_file = os.path.join(folder_path, "optimized_post.txt")
-                if os.path.exists(optimized_file):
-                    with open(optimized_file, 'r', encoding='utf-8') as f:
-                        blog_content = f.read()
-                        all_blogs.append(blog_content)
+            optimized_file = os.path.join(folder_path, "optimized_post.txt")
+            if os.path.exists(optimized_file):
+                with open(optimized_file, 'r', encoding='utf-8') as f:
+                    blog_content = f.read()
+                    all_blogs.append(blog_content)
+                    print(f"  ✅ Loaded: {folder}")
     
     if not all_blogs:
         return f"<h1>No blogs found for {today}</h1><p>Blogs may still be generating...</p>"
     
     # Stack all blogs with separators
-    combined_blogs = "\n\n" + "="*50 + "\n\n"
-    combined_blogs += f"\n\n" + "="*50 + "\n\n".join(all_blogs)
+    combined_blogs = f"📅 MLB BLOG POSTS FOR {today.upper()}\n"
+    combined_blogs += f"🕐 Generated at: {datetime.now().strftime('%I:%M %p ET')}\n"
+    combined_blogs += f"📊 Total Games: {len(all_blogs)}\n"
+    combined_blogs += "\n" + "="*80 + "\n\n"
+    combined_blogs += f"\n\n" + "="*80 + "\n\n".join(all_blogs)
     
     # Return as plain text (just like your current blogs look)
     return Response(combined_blogs, mimetype='text/plain')
@@ -138,8 +180,8 @@ def health():
     return {'status': 'healthy', 'timestamp': datetime.now().isoformat()}
 
 def run_scheduler():
-    """Run daily blog generation at 6 AM ET"""
-    schedule.every().day.at("11:00").do(generate_daily_blogs)  # 11:00 UTC = 6:00 AM ET
+    """Run daily blog generation at 7 AM EDT"""
+    schedule.every().day.at("11:00").do(generate_daily_blogs)  # 11:00 UTC = 7:00 AM EDT
     
     while True:
         schedule.run_pending()
@@ -152,7 +194,7 @@ def initialize_app():
     # Start background scheduler
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
-    print("✅ Background scheduler started - will generate daily at 6 AM ET")
+    print("✅ Background scheduler started - will generate daily at 7 AM EDT")
     
     # Generate blogs in background after Flask starts
     def delayed_blog_generation():
