@@ -64,22 +64,75 @@ class MLBDataFetcher:
         return None
 
     def find_game_betting_data(self, betting_games, matchup):
-        """Find betting data for a specific game matchup"""
+        """Find betting data for a specific game matchup with better team matching"""
         if ' @ ' not in matchup:
             return None
             
         away_team, home_team = matchup.split(' @ ')
         
-        # Find matching betting game by checking if team codes are in the full team names
+        print(f"🔍 Looking for betting data: {away_team} @ {home_team}")
+        
+        # Enhanced team mapping for better matching
+        team_mapping = {
+            # MLB API code -> DraftKings full name patterns
+            'LAA': ['LA Angels', 'LAA Angels', 'Angels'],
+            'LAD': ['LA Dodgers', 'LAD Dodgers', 'Dodgers'],
+            'NYM': ['NY Mets', 'NYM Mets', 'Mets'],
+            'NYY': ['NY Yankees', 'NYY Yankees', 'Yankees'],
+            'CWS': ['CHI White Sox', 'CWS White Sox', 'White Sox'],
+            'CHC': ['CHI Cubs', 'CHC Cubs', 'Cubs'],
+            'TB': ['TB Rays', 'Rays'],
+            'SF': ['SF Giants', 'Giants'],
+            'SD': ['SD Padres', 'Padres'],
+            'KC': ['KC Royals', 'Royals'],
+            'WSH': ['WAS Mystics', 'WSH Nationals', 'Nationals'],  # Handle both
+            'ARI': ['ARI Diamondbacks', 'AZ Diamondbacks', 'Diamondbacks'],
+            'AZ': ['ARI Diamondbacks', 'AZ Diamondbacks', 'Diamondbacks'],
+            'MIA': ['MIA Marlins', 'Marlins'],
+            'CIN': ['CIN Reds', 'Reds'],
+            'COL': ['COL Rockies', 'Rockies'],
+            'BOS': ['BOS Red Sox', 'Red Sox'],
+            'MIL': ['MIL Brewers', 'Brewers'],
+            'PIT': ['PIT Pirates', 'Pirates'],
+            'HOU': ['HOU Astros', 'Astros'],
+            'CLE': ['CLE Guardians', 'Guardians'],
+            'TEX': ['TEX Rangers', 'Rangers'],
+            'DET': ['DET Tigers', 'Tigers'],
+            'MIN': ['MIN Twins', 'Twins'],
+            'TOR': ['TOR Blue Jays', 'Blue Jays'],
+            'ATL': ['ATL Braves', 'Braves'],
+            'BAL': ['BAL Orioles', 'Orioles'],
+            'PHI': ['PHI Phillies', 'Phillies'],
+            'SEA': ['SEA Mariners', 'Mariners'],
+            'STL': ['STL Cardinals', 'Cardinals'],
+            'OAK': ['OAK Athletics', 'Athletics'],
+        }
+        
+        def get_team_matches(team_code):
+            """Get all possible team name matches for a team code"""
+            if team_code in team_mapping:
+                return team_mapping[team_code]
+            return [team_code]  # Fallback to original code
+        
+        away_matches = get_team_matches(away_team)
+        home_matches = get_team_matches(home_team)
+        
+        # Find matching betting game
         for game in betting_games:
             betting_away = game.get('away_team', '')
             betting_home = game.get('home_team', '')
             
-            # Check if the short codes match the start of the full names
-            # e.g., "TB" matches "TB Rays" and "MIN" matches "MIN Twins"
-            if (betting_away.startswith(away_team) and betting_home.startswith(home_team)):
+            print(f"  🔍 Checking: {betting_away} @ {betting_home}")
+            
+            # Check if any of the away team matches work
+            away_match = any(match in betting_away for match in away_matches)
+            home_match = any(match in betting_home for match in home_matches)
+            
+            if away_match and home_match:
+                print(f"  ✅ Found match: {betting_away} @ {betting_home}")
                 return game
         
+        print(f"  ❌ No betting data found for {away_team} @ {home_team}")
         return None
 
     def format_pitcher_arsenal(self, pitcher_data):
@@ -228,6 +281,35 @@ class MLBDataFetcher:
         
         return f"DraftKings has {fav_team} as a {fav_odds} favorite and {und_team} as a {und_odds} underdog, with {money_pct} of the money backing {money_team}."
 
+    def parse_game_time_for_sorting(self, time_str):
+        """Parse game time for proper chronological sorting"""
+        if not time_str or time_str == 'TBD':
+            return 9999  # Sort TBD games to the end
+        
+        try:
+            # Handle format like "7/8, 06:40PM" or just "06:40PM"
+            if ',' in time_str:
+                time_part = time_str.split(',')[1].strip()
+            else:
+                time_part = time_str.strip()
+            
+            # Convert to 24-hour format for proper sorting
+            if 'PM' in time_part:
+                hour = int(time_part.split(':')[0])
+                if hour != 12:
+                    hour += 12
+                minute = int(time_part.split(':')[1].replace('PM', ''))
+            else:  # AM
+                hour = int(time_part.split(':')[0])
+                if hour == 12:
+                    hour = 0
+                minute = int(time_part.split(':')[1].replace('AM', ''))
+            
+            return hour * 100 + minute  # Returns like 1840 for 6:40PM
+        except Exception as e:
+            print(f"⚠️ Error parsing time '{time_str}': {e}")
+            return 9999  # Sort unparseable times to end
+
     def get_blog_topics_from_games(self):
         """Generate blog topics from current MLB games"""
         mlb_reports = self.get_mlb_data()
@@ -350,5 +432,14 @@ class MLBDataFetcher:
             except Exception as e:
                 print(f"❌ Error processing game {matchup}: {e}")
                 continue
+        
+        # ✅ IMPROVED: Sort blog topics by game time (earliest to latest)
+        print(f"🔄 Sorting {len(blog_topics)} games by time...")
+        blog_topics.sort(key=lambda x: self.parse_game_time_for_sorting(x['game_data'].get('game_time', 'TBD')))
+        
+        # Debug: Print sorted order
+        for i, topic in enumerate(blog_topics):
+            game_time = topic['game_data'].get('game_time', 'TBD')
+            print(f"  {i+1}. {topic['topic']} - {game_time}")
         
         return blog_topics
