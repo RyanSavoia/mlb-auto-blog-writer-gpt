@@ -105,7 +105,7 @@ class MLBDataFetcher:
             'PHI': ['PHI Phillies', 'Phillies'],
             'SEA': ['SEA Mariners', 'Mariners'],
             'STL': ['STL Cardinals', 'Cardinals'],
-            'OAK': ['OAK Athletics', 'Athletics'],
+            'ATH': ['Athletics'],
         }
         
         def get_team_matches(team_code):
