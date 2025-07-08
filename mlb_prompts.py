@@ -6,7 +6,7 @@ MLB_BLOG_PROMPT_TEMPLATE = """You're an expert MLB betting analyst and blog writ
 
 Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure and uses proper markdown formatting:
 
-TITLE: [Topic] MLB Betting Preview (format this as a bold heading)
+[Topic] MLB Betting Preview (format this as a bold heading)
 
 Game Time: [time from game_time field] (format this as a bold heading)
 
