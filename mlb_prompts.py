@@ -4,40 +4,36 @@ import random
 # ✅ FIXED: Corrected betting criteria logic
 MLB_BLOG_PROMPT_TEMPLATE = """You're an expert MLB betting analyst and blog writer. You write sharp, stat-driven previews for baseball bettors.
 
-Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure:
+Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure and uses proper markdown formatting:
 
-**TITLE:** Use the provided topic as the title
+TITLE: [Topic] MLB Betting Preview (format this as a bold heading)
 
-**GAME TIME:** Include the game time from the data immediately after the title
-Format: "Game Time: [time from game_time field]"
+Game Time: [time from game_time field] (format this as a bold heading)
 
-**BETTING LINE:** Include the betting information from the data immediately after the game time
-Use the exact text from the `betting_info` field
+1. Brief Intro (format this as a bold heading)
+Set up the game in 2-3 sentences using the matchup and key angles from the data. Include the betting line information from the betting_info field in this intro section.
 
-**1. Brief Intro**
-Set up the game in 2-3 sentences using the matchup and key angles from the data.
-
-**2. Pitcher Breakdown**
-**Subhead:** `Pitching Matchup: [Away Pitcher] vs [Home Pitcher]`
+2. Pitcher Breakdown (format this as a bold heading)
+Subhead: Pitching Matchup: [Away Pitcher] vs [Home Pitcher] (format this as a bold subheading)
 
 Break into two parts:
 
-**[Away Pitcher Name] ([Away Team]):**
+[Away Pitcher Name] ([Away Team]): (format this as a bold subheading)
 - List ALL pitch types with EXACT usage percentages and velocities from `away_pitcher.arsenal`
 - Format: "Four-Seam Fastball (35% usage, 97.1 mph), Slider (18% usage, 87.0 mph), Splitter (14% usage, 84.7 mph)"
 - Interpretation: What style of pitcher (velocity-heavy, pitch-mix artist, etc.)
 - How their pitches match up: "The [Home Team] lineup averages .XXX this season with a projected xBA of .XXX vs [Away Pitcher]'s arsenal"
 
-**[Home Pitcher Name] ([Home Team]):**
+[Home Pitcher Name] ([Home Team]): (format this as a bold subheading)
 - Same detailed structure: List ALL pitches with exact usage % and mph from `home_pitcher.arsenal`
 - "The [Away Team] lineup averages .XXX this season with a projected xBA of .XXX vs [Home Pitcher]'s arsenal"
 
-**Example format:** "Mitch Spence throws 6 different pitches, headlined by a 97.1 mph fastball (35% usage) and a sharp slider (18%). His pitch diversity could cause issues for a lineup that struggles vs breaking balls."
+Example format: "Mitch Spence throws 6 different pitches, headlined by a 97.1 mph fastball (35% usage) and a sharp slider (18%). His pitch diversity could cause issues for a lineup that struggles vs breaking balls."
 
-**3. Lineup Advantage vs Arsenal**
-**Subhead:** `Lineup Matchups & Batting Edges`
+3. Lineup Advantage vs Arsenal (format this as a bold heading)
+Subhead: Lineup Matchups & Batting Edges (format this as a bold subheading)
 
-For **Away Team vs Home Pitcher:**
+For Away Team vs Home Pitcher: (format this as a bold subheading)
 - Compare team averages: "The [Away Team] lineup averages .XXX this season but projects to .XXX vs [Home Pitcher]'s arsenal"
 - From `away_key_performers`, show:
   - The batter with the BIGGEST INCREASE in xBA (if any)
@@ -45,23 +41,23 @@ For **Away Team vs Home Pitcher:**
   - Format: Name: Season BA .XXX → xBA vs arsenal .XXX (+/- XX points), Season K% XX.X% → Arsenal K% XX.X% (+/- X.X%)
 - Skip batters with minimal changes (under 15 point differences)
 
-For **Home Team vs Away Pitcher:**
+For Home Team vs Away Pitcher: (format this as a bold subheading)
 - Same detailed structure using `home_key_performers`
 - Focus on biggest increase and biggest decrease only
 
-**Example format:** 
+Example format: 
 "Tyler Soderstrom: Season BA .247 → xBA vs arsenal .272 (+25 points), Season K% 23.1% → Arsenal K% 20.5% (-2.6%)"
 
-**4. Lineup Strikeout Trends vs Arsenal**
-**Subhead:** `Strikeout Risks & Rewards`
+4. Lineup Strikeout Trends vs Arsenal (format this as a bold heading)
+Subhead: Strikeout Risks & Rewards (format this as a bold subheading)
 
 For each team:
 - Use `away_arsenal_k_pct` vs `away_season_k_pct` and `home_arsenal_k_pct` vs `home_season_k_pct`
 - Format: "The [Team]'s projected K-rate is [X]% vs [Pitcher] — up/down [Y]% from their [Z]% season average."
 - Interpretation: Higher = potential K prop value, Lower = potential contact play
 
-**5. Umpire Influence**
-**Subhead:** `Behind the Plate: [Umpire Name]`
+5. Umpire Influence (format this as a bold heading)
+Subhead: Behind the Plate: [Umpire Name] (format this as a bold subheading)
 
 If `umpire` field is NOT "TBA" and umpire data exists:
 - Show exact umpire name from `umpire` field
@@ -73,10 +69,10 @@ If `umpire` field is NOT "TBA" and umpire data exists:
 If `umpire` field is "TBA" or missing:
 - "Umpire assignment has not been announced, which makes prop volatility a concern."
 
-**CRITICAL:** Only use umpire data that exists in the JSON. Do NOT guess or assume umpire tendencies. Remember: walks help hitters, not pitchers.
+CRITICAL: Only use umpire data that exists in the JSON. Do NOT guess or assume umpire tendencies. Remember: walks help hitters, not pitchers.
 
-**6. Betting Interpretation / Final Lean**
-**Subhead:** `Final Lean & Betting Takeaway`
+6. Betting Interpretation / Final Lean (format this as a bold heading)
+Subhead: Final Lean & Betting Takeaway (format this as a bold subheading)
 
 **STEP-BY-STEP BETTING ANALYSIS:**
 
