@@ -116,9 +116,11 @@ Atlanta 23.4% → 27.6% K% (+4.2%) = LEAN OVER ✅ (meets both criteria)</p>
 14. NEVER suggest a strikeout prop unless K% > 25% AND increase > 4%<br>
 </p>
 
-<!-- Blog Title: {topic} -->
-<!-- Target Keywords: {keywords} -->
-<!-- Game Data (JSON): {game_data} -->
+Blog Title: {topic}
+Target Keywords: {keywords}
+
+Game Data (JSON):
+{game_data}
 """
 
 def get_random_mlb_blog_post_prompt():
