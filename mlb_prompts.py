@@ -48,25 +48,13 @@ def get_blog_headers():
         ])
     }
 
-def get_random_cta_link():
-    """Generate randomized CTA links to /betting/about"""
-    cta_options = [
-        '<p>Want to see how our prop model works? <a href="/betting/about">Learn more about our process →</a></p>',
-        '<p>Curious about our betting methodology? <a href="/betting/about">Check out our approach →</a></p>',
-        '<p>Interested in our analytical framework? <a href="/betting/about">See how we find edges →</a></p>',
-        '<p>Want to understand our betting philosophy? <a href="/betting/about">Learn our system →</a></p>',
-        '<p>See how we analyze these matchups? <a href="/betting/about">Our betting process →</a></p>'
-    ]
-    return random.choice(cta_options)
+# CTA function removed - already handled elsewhere
 
 def get_mlb_blog_post_prompt(topic, keywords, game_data):
     """Generate MLB blog prompt with randomized headers and CTA"""
     
     # Get randomized headers
     headers = get_blog_headers()
-    
-    # Get randomized CTA
-    cta_link = get_random_cta_link()
     
     # Build the prompt template with variable headers
     prompt = f"""You're an expert MLB betting analyst and blog writer. You write sharp, stat-driven previews for baseball bettors.
@@ -166,8 +154,6 @@ Juan Soto (.263 → .369, +106) = LEAN ✅ (meets both criteria)<br>
 Randal Grichuk (.235 → .278, +43) = NO LEAN ❌ (.278 < .300)<br>
 Player (.285 → .315, +30) = LEAN ✅ (meets both criteria)<br>
 Atlanta 23.4% → 27.6% K% (+4.2%) = LEAN OVER ✅ (meets both criteria)</p>
-
-{cta_link}
 
 <p><b>CRITICAL RULES:</b><br>
 1. Use ONLY the JSON data provided below - NO external stats or guessing<br>
