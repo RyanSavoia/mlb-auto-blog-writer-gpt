@@ -408,7 +408,7 @@ def blog_index(date):
 
 @app.route('/mlb-blogs/<date>/<slug>')
 def show_blog(date, slug):
-    """Display individual blog post with SEO schema"""
+    """Display individual blog post as raw HTML for Webflow integration"""
     folder_path = f"mlb_blog_posts/{date}/{slug}"
     file_path = os.path.join(folder_path, "optimized_post.txt")
     schema_path = os.path.join(folder_path, "schema.json")
@@ -430,76 +430,57 @@ def show_blog(date, slug):
         with open(meta_path, 'r', encoding='utf-8') as f:
             meta = json.load(f)
     
-    # Convert markdown-style content to HTML
-    html_content = blog_content.replace('\n\n', '</p><p>').replace('\n', '<br>')
-    html_content = f"<p>{html_content}</p>"
-    
-    # Handle headers
-    html_content = re.sub(r'<p># (.*?)</p>', r'<h1>\1</h1>', html_content)
-    html_content = re.sub(r'<p>## (.*?)</p>', r'<h2>\1</h2>', html_content)
-    html_content = re.sub(r'<p>### (.*?)</p>', r'<h3>\1</h3>', html_content)
-    
-    # Generate full HTML page
-    title = schema.get('headline', meta.get('title', f"MLB: {meta.get('matchup', 'Game Preview')}"))
-    description = schema.get('description', meta.get('description', ''))
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{title}</title>
-        <meta name="description" content="{description}">
-        <link rel="canonical" href="/mlb-blogs/{date}/{slug}">
-        <style>
-            body {{ font-family: Georgia, serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }}
-            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-            h2 {{ color: #34495e; margin-top: 30px; }}
-            .meta {{ background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-            .teams {{ display: flex; align-items: center; gap: 15px; margin: 20px 0; }}
-            .team {{ display: flex; align-items: center; gap: 10px; }}
-            .team-logo {{ width: 40px; height: 40px; }}
-            .back-link {{ margin: 20px 0; }}
-            .back-link a {{ color: #3498db; text-decoration: none; }}
-            .back-link a:hover {{ text-decoration: underline; }}
-        </style>
-        <script type="application/ld+json">
-        {json.dumps(schema, indent=2) if schema else '{}'}
-        </script>
-    </head>
-    <body>
-        <div class="back-link">
-            <a href="/mlb-blogs/{date}">← Back to {date} Games</a>
+    # Create team metadata section with logo URLs
+    team_meta_html = f"""
+    <div class="team-meta">
+        <div class="away-team" data-team="{meta.get('away_team', '')}" data-logo="{meta.get('away_logo', '')}">
+            <span class="team-name">{meta.get('away_team', '')}</span>
+            <img src="{meta.get('away_logo', '')}" alt="{meta.get('away_team', '')} logo" class="team-logo">
         </div>
-        
-        <div class="meta">
-            <div class="teams">
-                <div class="team">
-                    <img src="{meta.get('away_logo', '')}" alt="{meta.get('away_team', '')}" class="team-logo" onerror="this.style.display='none'">
-                    <strong>{meta.get('away_team', '')}</strong>
-                </div>
-                <span>@</span>
-                <div class="team">
-                    <img src="{meta.get('home_logo', '')}" alt="{meta.get('home_team', '')}" class="team-logo" onerror="this.style.display='none'">
-                    <strong>{meta.get('home_team', '')}</strong>
-                </div>
-            </div>
-            <div>🕐 Game Time: {meta.get('game_time', 'TBD')}</div>
+        <div class="game-info">
+            <span class="vs-text">@</span>
+            <span class="game-time">{meta.get('game_time', 'TBD')}</span>
         </div>
-        
-        <article>
-            {html_content}
-        </article>
-        
-        <div class="back-link">
-            <a href="/mlb-blogs/{date}">← Back to {date} Games</a>
+        <div class="home-team" data-team="{meta.get('home_team', '')}" data-logo="{meta.get('home_logo', '')}">
+            <span class="team-name">{meta.get('home_team', '')}</span>
+            <img src="{meta.get('home_logo', '')}" alt="{meta.get('home_team', '')} logo" class="team-logo">
         </div>
-    </body>
-    </html>
+    </div>
     """
     
-    return html
+    # Add SEO schema as invisible JSON for Webflow
+    schema_html = ""
+    if schema:
+        schema_html = f'<script type="application/ld+json">{json.dumps(schema, indent=2)}</script>'
+    
+    # Generate raw HTML output for Webflow
+    raw_html = f"""<!-- SEO Meta Data -->
+<meta name="title" content="{schema.get('headline', meta.get('title', f'MLB: {meta.get('matchup', 'Game Preview')}'))}">
+<meta name="description" content="{schema.get('description', meta.get('description', ''))}">
+<link rel="canonical" href="/mlb-blogs/{date}/{slug}">
+
+<!-- Team Metadata for Webflow -->
+{team_meta_html}
+
+<!-- Blog Content -->
+{blog_content}
+
+<!-- SEO Schema -->
+{schema_html}
+
+<!-- Metadata for Webflow CMS -->
+<div class="blog-metadata" style="display:none;">
+    <span class="matchup">{meta.get('matchup', '')}</span>
+    <span class="date">{date}</span>
+    <span class="slug">{slug}</span>
+    <span class="away-team">{meta.get('away_team', '')}</span>
+    <span class="home-team">{meta.get('home_team', '')}</span>
+    <span class="away-logo-url">{meta.get('away_logo', '')}</span>
+    <span class="home-logo-url">{meta.get('home_logo', '')}</span>
+    <span class="game-time">{meta.get('game_time', 'TBD')}</span>
+</div>"""
+    
+    return raw_html
 
 @app.route('/generate')
 def manual_generate():
