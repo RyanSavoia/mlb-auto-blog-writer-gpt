@@ -16,6 +16,80 @@ from urllib.parse import quote
 
 app = Flask(__name__)
 
+# Internal linking phrase-to-URL mapping
+INTERLINK_MAP = {
+    # Stats product
+    "betting splits": "https://www.thebettinginsider.com/stats-about",
+    "public money": "https://www.thebettinginsider.com/stats-about",
+    "betting percentage": "https://www.thebettinginsider.com/stats-about",
+    "sharp money": "https://www.thebettinginsider.com/stats-about",
+    "betting trends": "https://www.thebettinginsider.com/stats-about",
+    "stats dashboard": "https://www.thebettinginsider.com/stats-about",
+    # Pitcher arsenal tool
+    "pitcher arsenal data": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "pitch mix": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "arsenal-specific performance": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "batter vs pitch type stats": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "projected xBA": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "expected batting average": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "contact-adjusted xBA": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "xBA vs arsenal": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "strikeout percentage": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "K-rate": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "strikeout rate": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "whiff rate": "https://www.thebettinginsider.com/daily-mlb-game-stats",
+    "swing and miss %": "https://www.thebettinginsider.com/daily-mlb-game-stats"
+}
+
+def auto_link_blog_content(blog_text, max_links=5):
+    """Automatically insert internal links into blog content"""
+    if not blog_text or max_links <= 0:
+        return blog_text
+    
+    links_inserted = 0
+    modified_text = blog_text
+    
+    # Sort phrases by length (longest first) to avoid partial matching issues
+    sorted_phrases = sorted(INTERLINK_MAP.keys(), key=len, reverse=True)
+    
+    for phrase in sorted_phrases:
+        if links_inserted >= max_links:
+            break
+            
+        url = INTERLINK_MAP[phrase]
+        
+        # Create regex pattern for whole word/phrase matching (case-insensitive)
+        # Use word boundaries to ensure we match complete phrases
+        pattern = r'\b' + re.escape(phrase) + r'\b'
+        
+        # Check if this phrase exists in the text and isn't already linked
+        match = re.search(pattern, modified_text, re.IGNORECASE)
+        if match:
+            # Check if the matched phrase is already inside an HTML link
+            matched_text = match.group()
+            start_pos = match.start()
+            
+            # Look backwards from match to see if we're inside a link tag
+            preceding_text = modified_text[:start_pos]
+            last_link_start = preceding_text.rfind('<a ')
+            last_link_end = preceding_text.rfind('</a>')
+            
+            # If we're inside a link tag, skip this phrase
+            if last_link_start > last_link_end:
+                continue
+            
+            # Replace only the first occurrence with a link
+            link_html = f'<a href="{url}">{matched_text}</a>'
+            modified_text = re.sub(pattern, link_html, modified_text, count=1, flags=re.IGNORECASE)
+            links_inserted += 1
+            
+            print(f"  🔗 Added internal link: '{matched_text}' -> {url}")
+    
+    if links_inserted > 0:
+        print(f"  ✅ Total internal links added: {links_inserted}")
+    
+    return modified_text
+
 def save_to_file(directory, filename, content):
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -183,6 +257,11 @@ def generate_daily_blogs():
             # Audit and optimize blog post
             print("  🔍 Optimizing for readability...")
             optimized_post = audit_blog_post(blog_post)
+            
+            # Add internal links
+            print("  🔗 Adding internal links...")
+            optimized_post = auto_link_blog_content(optimized_post)
+            
             save_to_file(game_directory, "optimized_post.txt", optimized_post)
             print("  ✅ Optimized blog post saved")
             
