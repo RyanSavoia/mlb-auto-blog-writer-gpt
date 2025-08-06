@@ -1,17 +1,85 @@
 # mlb_prompts.py 
 import random
 
-MLB_BLOG_PROMPT_TEMPLATE = """You're an expert MLB betting analyst and blog writer. You write sharp, stat-driven previews for baseball bettors.
+def get_blog_headers():
+    """Generate randomized headers to avoid scaled content detection"""
+    return {
+        "intro": random.choice([
+            "Brief Intro", 
+            "Game Overview", 
+            "Matchup Setup",
+            "Today's Setup",
+            "Game Preview"
+        ]),
+        "pitchers": random.choice([
+            "Pitcher Breakdown", 
+            "Rotation Report", 
+            "Starting Pitching Analysis",
+            "Mound Matchup",
+            "Pitching Preview"
+        ]),
+        "lineups": random.choice([
+            "Lineup Matchups", 
+            "Batting Edges vs Arsenal", 
+            "Offensive Breakdown",
+            "Lineup Advantage vs Arsenal",
+            "Hitting Matchups"
+        ]),
+        "strikeouts": random.choice([
+            "Strikeout Trends", 
+            "K-Risk Analysis", 
+            "Whiff Outlook",
+            "Lineup Strikeout Trends vs Arsenal",
+            "Contact vs Strikeout Profile"
+        ]),
+        "umpire": random.choice([
+            "Umpire Impact", 
+            "Behind the Plate", 
+            "Umpire Trends",
+            "Umpire Influence",
+            "Plate Umpire Analysis"
+        ]),
+        "lean": random.choice([
+            "Final Lean & Takeaway", 
+            "Betting Breakdown", 
+            "Where the Edge Is",
+            "Betting Interpretation / Final Lean",
+            "Our Betting Take"
+        ])
+    }
+
+def get_random_cta_link():
+    """Generate randomized CTA links to /betting/about"""
+    cta_options = [
+        '<p>Want to see how our prop model works? <a href="/betting/about">Learn more about our process →</a></p>',
+        '<p>Curious about our betting methodology? <a href="/betting/about">Check out our approach →</a></p>',
+        '<p>Interested in our analytical framework? <a href="/betting/about">See how we find edges →</a></p>',
+        '<p>Want to understand our betting philosophy? <a href="/betting/about">Learn our system →</a></p>',
+        '<p>See how we analyze these matchups? <a href="/betting/about">Our betting process →</a></p>'
+    ]
+    return random.choice(cta_options)
+
+def get_mlb_blog_post_prompt(topic, keywords, game_data):
+    """Generate MLB blog prompt with randomized headers and CTA"""
+    
+    # Get randomized headers
+    headers = get_blog_headers()
+    
+    # Get randomized CTA
+    cta_link = get_random_cta_link()
+    
+    # Build the prompt template with variable headers
+    prompt = f"""You're an expert MLB betting analyst and blog writer. You write sharp, stat-driven previews for baseball bettors.
 
 Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure and uses proper HTML formatting with <h4>, <h5>, and <p> tags. DO NOT use bullet points or markdown. Each section should be structured with clear headings and paragraphs. Use <br><br> to create extra space between sections if needed.
 
-<h4><b>[Topic] MLB Betting Preview</b></h4>
+<h4><b>{topic}</b></h4>
 <h4><b>Game Time: [time from game_time field]</b></h4>
 
-<h4><b>1. Brief Intro</b></h4>
+<h4><b>1. {headers['intro']}</b></h4>
 <p>Set up the game in 2-3 sentences using the matchup and key angles from the data. <b>Include the betting line information from the betting_info field in this intro section.</b></p>
 
-<h4><b>2. Pitcher Breakdown</b></h4>
+<h4><b>2. {headers['pitchers']}</b></h4>
 <h5><b>Pitching Matchup: [Away Pitcher] vs [Home Pitcher]</b></h5>
 
 <h5><b>[Away Pitcher Name] ([Away Team]):</b></h5>
@@ -24,7 +92,7 @@ How their pitches match up: "The [Home Team] lineup averages .XXX this season wi
 <p>Same detailed structure: List ALL pitches with exact usage % and mph from home_pitcher.arsenal<br>
 "The [Away Team] lineup averages .XXX this season with a projected xBA of .XXX vs [Home Pitcher]'s arsenal"</p>
 
-<h4><b>3. Lineup Advantage vs Arsenal</b></h4>
+<h4><b>3. {headers['lineups']}</b></h4>
 <h5><b>Lineup Matchups & Batting Edges</b></h5>
 
 <h5><b>For Away Team vs Home Pitcher:</b></h5>
@@ -39,14 +107,14 @@ Skip batters with minimal changes (under 15 point differences)</p>
 <p>Same detailed structure using home_key_performers.<br>
 Focus on biggest increase and biggest decrease only.</p>
 
-<h4><b>4. Lineup Strikeout Trends vs Arsenal</b></h4>
+<h4><b>4. {headers['strikeouts']}</b></h4>
 <h5><b>Strikeout Risks & Rewards</b></h5>
 <p>For each team:<br>
 Use away_arsenal_k_pct vs away_season_k_pct and home_arsenal_k_pct vs home_season_k_pct.<br>
 Format: "The [Team]'s projected K-rate is [X]% vs [Pitcher] — up/down [Y]% from their [Z]% season average."<br>
 Interpretation: Higher = potential K prop value, Lower = potential contact play</p>
 
-<h4><b>5. Umpire Influence</b></h4>
+<h4><b>5. {headers['umpire']}</b></h4>
 <h5><b>Behind the Plate: [Umpire Name]</b></h5>
 <p>If umpire field is NOT "TBA" and umpire data exists:<br>
 Show exact umpire name from umpire field<br>
@@ -58,7 +126,7 @@ Classify correctly: If K% up and BB% up = "mixed tendencies", if K% up and BB% d
 "Umpire assignment has not been announced, which makes prop volatility a concern."</p>
 <p>CRITICAL: Only use umpire data that exists in the JSON. Do NOT guess or assume umpire tendencies. Remember: walks help hitters, not pitchers.</p>
 
-<h4><b>6. Betting Interpretation / Final Lean</b></h4>
+<h4><b>6. {headers['lean']}</b></h4>
 <h5><b>Final Lean & Betting Takeaway</b></h5>
 
 <p><b>STEP-BY-STEP BETTING ANALYSIS:</b></p>
@@ -99,6 +167,8 @@ Randal Grichuk (.235 → .278, +43) = NO LEAN ❌ (.278 < .300)<br>
 Player (.285 → .315, +30) = LEAN ✅ (meets both criteria)<br>
 Atlanta 23.4% → 27.6% K% (+4.2%) = LEAN OVER ✅ (meets both criteria)</p>
 
+{cta_link}
+
 <p><b>CRITICAL RULES:</b><br>
 1. Use ONLY the JSON data provided below - NO external stats or guessing<br>
 2. If data is missing, say "data not available" rather than inventing<br>
@@ -122,8 +192,13 @@ Target Keywords: {keywords}
 Game Data (JSON):
 {game_data}
 """
+    
+    return prompt
 
 def get_random_mlb_blog_post_prompt():
-    return MLB_BLOG_PROMPT_TEMPLATE
+    """Legacy function - kept for backward compatibility"""
+    # This function signature needs to be updated in your generate_blog_post.py
+    # to use the new get_mlb_blog_post_prompt(topic, keywords, game_data) instead
+    return "Use get_mlb_blog_post_prompt(topic, keywords, game_data) instead"
 
 # audit_blog_post.py can remain as you have it.
