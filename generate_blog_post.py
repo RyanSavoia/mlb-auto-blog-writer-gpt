@@ -1,6 +1,6 @@
 # generate_blog_post.py
 from config import OPENAI_API_KEY
-from mlb_prompts import get_random_mlb_blog_post_prompt
+from mlb_prompts import get_mlb_blog_post_prompt
 from openai import OpenAI
 import json
 
@@ -8,17 +8,9 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 def generate_mlb_blog_post(topic, keywords, game_data):
     """Generate MLB-specific blog post using game data"""
-    prompt_template = get_random_mlb_blog_post_prompt()
-
-    # ✅ NEW: Send raw JSON to Claude/GPT for accuracy
-    game_info = json.dumps(game_data, indent=2)
-
-    prompt = prompt_template.format(
-        topic=topic, 
-        keywords=", ".join(keywords),
-        game_data=game_info
-    )
-
+    # Get the formatted prompt with randomized headers and CTA
+    prompt = get_mlb_blog_post_prompt(topic, keywords, game_data)
+    
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -34,15 +26,13 @@ def generate_mlb_blog_post(topic, keywords, game_data):
         max_tokens=4096,
         temperature=0.7
     )
-
+    
     return response.choices[0].message.content
-
 
 # Keep the original function for backward compatibility
 def generate_blog_post(topic, keywords):
     """Original function - kept for compatibility"""
     return generate_mlb_blog_post(topic, keywords, {})
-
 
 if __name__ == "__main__":
     # Test the function
@@ -61,7 +51,7 @@ if __name__ == "__main__":
         'away_key_performers': [],
         'home_key_performers': []
     }
-
+    
     result = generate_mlb_blog_post(test_topic, test_keywords, test_game_data)
     print("Generated blog post preview:")
     print(result[:500] + "..." if len(result) > 500 else result)
