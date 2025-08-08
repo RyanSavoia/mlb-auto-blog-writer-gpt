@@ -16,10 +16,10 @@ def generate_mlb_blog_post(topic, keywords, game_data):
         messages=[
             {
                 "role": "system",
-                "content": "You are a professional MLB betting analyst and blog writer who specializes in pitcher-batter matchups and umpire analysis. Write engaging, data-driven content for baseball fans and bettors."
+                "content": "You are a professional MLB betting analyst and blog writer who specializes in pitcher-batter matchups and umpire analysis. Write engaging, data-driven content for baseball fans and bettors. CRITICAL: You must output ONLY valid HTML code using <h4>, <h5>, and <p> tags. Do not use markdown formatting. Every heading must be wrapped in HTML tags like <h4><b>Title</b></h4>."
             },
             {
-                "role": "user",
+                "role": "user", 
                 "content": prompt
             }
         ],
