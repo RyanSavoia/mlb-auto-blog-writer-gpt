@@ -90,11 +90,11 @@ def auto_link_blog_content(blog_text, max_links=5):
     return modified_text
 
 def convert_text_to_html(blog_text):
-    """Convert plain text blog to HTML format"""
+    """Convert text blog to proper HTML format"""
     if not blog_text:
         return blog_text
     
-    # Split into lines and process each one
+    # Split into lines
     lines = blog_text.strip().split('\n')
     html_lines = []
     
@@ -103,24 +103,37 @@ def convert_text_to_html(blog_text):
         if not line:
             continue
         
-        # Check for different header patterns
-        if line.endswith('MLB Betting Preview'):
-            # Main title
-            html_lines.append(f'<h4><b>{line}</b></h4>')
-        elif line.startswith('Game Time:'):
-            # Game time header
-            html_lines.append(f'<h4><b>{line}</b></h4>')
-        elif re.match(r'^\d+\.\s+', line):
-            # Numbered sections like "1. Brief Intro"
-            html_lines.append(f'<h4><b>{line}</b></h4>')
-        elif line.endswith(':') and len(line) < 50:
-            # Sub-headers that end with colon
-            html_lines.append(f'<h5><b>{line}</b></h5>')
+        # Main title (ends with "MLB Betting Preview")
+        if 'MLB Betting Preview' in line:
+            clean_line = line.replace('**', '')
+            html_lines.append(f'<h4><b>{clean_line}</b></h4>')
+        
+        # Game time
+        elif line.startswith('Game Time:') or line.startswith('**Game Time:'):
+            clean_line = line.replace('**', '')
+            html_lines.append(f'<h4><b>{clean_line}</b></h4>')
+        
+        # Numbered sections (1. Brief Intro, 2. Pitcher Analysis, etc.)
+        elif re.match(r'^\*?\*?\d+\.\s+', line):
+            clean_line = re.sub(r'^\*?\*?(\d+\.\s+.*?)\*?\*?$', r'\1', line)
+            html_lines.append(f'<h4><b>{clean_line}</b></h4>')
+        
+        # Sub-headers that end with colon and are bolded
+        elif line.startswith('**') and line.endswith(':**'):
+            clean_line = line.replace('**', '')
+            html_lines.append(f'<h5><b>{clean_line}</b></h5>')
+        
+        # Other bolded headers
+        elif line.startswith('**') and line.endswith('**'):
+            clean_line = line.replace('**', '')
+            html_lines.append(f'<h5><b>{clean_line}</b></h5>')
+        
+        # STEP headers
         elif line.startswith('STEP'):
-            # Step headers
             html_lines.append(f'<p><b>{line}</b></p>')
+        
+        # Regular content
         else:
-            # Regular content
             html_lines.append(f'<p>{line}</p>')
     
     return '\n'.join(html_lines)
