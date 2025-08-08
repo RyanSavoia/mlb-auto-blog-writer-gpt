@@ -59,10 +59,19 @@ def get_mlb_blog_post_prompt(topic, keywords, game_data):
     # Build the prompt template with variable headers
     prompt = f"""You're an expert MLB betting analyst and blog writer. You write sharp, stat-driven previews for baseball bettors.
 
-Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure and uses proper HTML formatting with <h4>, <h5>, and <p> tags. DO NOT use bullet points or markdown. Each section should be structured with clear headings and paragraphs. Use <br><br> to create extra space between sections if needed.
+Based on the JSON game data below, write a 400–700 word blog post that follows this EXACT structure. 
+
+CRITICAL: You MUST output ONLY HTML code using <h4>, <h5>, and <p> tags. DO NOT use markdown formatting like **bold** or ## headers. Every heading must be wrapped in HTML tags exactly as shown below.
+
+REQUIRED HTML FORMAT EXAMPLE:
+<h4><b>Title Here</b></h4>
+<h4><b>Game Time: 8/8, 06:40 PM</b></h4>
+<p>Your paragraph text goes here with <b>bold text</b> when needed.</p>
+
+You must output EXACTLY this structure with proper HTML tags:
 
 <h4><b>{topic}</b></h4>
-<h4><b>Game Time: [time from game_time field]</b></h4>
+<h4><b>Game Time: [extract exact time from game_time field]</b></h4>
 
 <h4><b>1. {headers['intro']}</b></h4>
 <p>Set up the game in 2-3 sentences using the matchup and key angles from the data. <b>Include the betting line information from the betting_info field in this intro section.</b></p>
@@ -170,7 +179,9 @@ Atlanta 23.4% → 27.6% K% (+4.2%) = LEAN OVER ✅ (meets both criteria)</p>
 12. ALWAYS include the betting information right after the game time<br>
 13. NEVER suggest a batter lean unless xBA > 0.300 AND boost > +20 points<br>
 14. NEVER suggest a strikeout prop unless K% > 25% AND increase > 4%<br>
-</p>
+15. OUTPUT MUST BE VALID HTML WITH <h4>, <h5>, <p> TAGS ONLY - NO MARKDOWN</p>
+
+REMEMBER: Your entire response must be HTML code starting with <h4><b>{topic}</b></h4> and using only HTML tags throughout.
 
 Blog Title: {topic}
 Target Keywords: {keywords}
