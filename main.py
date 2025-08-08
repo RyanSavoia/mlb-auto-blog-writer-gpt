@@ -59,7 +59,6 @@ def auto_link_blog_content(blog_text, max_links=5):
         url = INTERLINK_MAP[phrase]
         
         # Create regex pattern for whole word/phrase matching (case-insensitive)
-        # Use word boundaries to ensure we match complete phrases
         pattern = r'\b' + re.escape(phrase) + r'\b'
         
         # Check if this phrase exists in the text and isn't already linked
@@ -89,6 +88,42 @@ def auto_link_blog_content(blog_text, max_links=5):
         print(f"  ✅ Total internal links added: {links_inserted}")
     
     return modified_text
+
+def convert_text_to_html(blog_text):
+    """Convert plain text blog to HTML format"""
+    if not blog_text:
+        return blog_text
+    
+    # Split into lines and process each one
+    lines = blog_text.strip().split('\n')
+    html_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Check for different header patterns
+        if line.endswith('MLB Betting Preview'):
+            # Main title
+            html_lines.append(f'<h4><b>{line}</b></h4>')
+        elif line.startswith('Game Time:'):
+            # Game time header
+            html_lines.append(f'<h4><b>{line}</b></h4>')
+        elif re.match(r'^\d+\.\s+', line):
+            # Numbered sections like "1. Brief Intro"
+            html_lines.append(f'<h4><b>{line}</b></h4>')
+        elif line.endswith(':') and len(line) < 50:
+            # Sub-headers that end with colon
+            html_lines.append(f'<h5><b>{line}</b></h5>')
+        elif line.startswith('STEP'):
+            # Step headers
+            html_lines.append(f'<p><b>{line}</b></p>')
+        else:
+            # Regular content
+            html_lines.append(f'<p>{line}</p>')
+    
+    return '\n'.join(html_lines)
 
 def save_to_file(directory, filename, content):
     if not os.path.exists(directory):
@@ -262,7 +297,11 @@ def generate_daily_blogs():
             print("  🔗 Adding internal links...")
             optimized_post = auto_link_blog_content(optimized_post)
             
-            save_to_file(game_directory, "optimized_post.txt", optimized_post)
+            # Convert to HTML format
+            print("  🔄 Converting to HTML format...")
+            html_post = convert_text_to_html(optimized_post)
+            
+            save_to_file(game_directory, "optimized_post.txt", html_post)
             print("  ✅ Optimized blog post saved")
             
             # Generate team logos
@@ -283,7 +322,7 @@ Home Logo: {team_logos['home_logo']}"""
             
             # Generate and save SEO schema
             print("  🔍 Generating SEO schema...")
-            schema = generate_blog_schema(game_data, optimized_post, slug, date_str)
+            schema = generate_blog_schema(game_data, html_post, slug, date_str)
             save_to_file(game_directory, "schema.json", json.dumps(schema, indent=2))
             print("  ✅ SEO schema saved")
             
