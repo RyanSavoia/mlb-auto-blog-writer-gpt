@@ -312,7 +312,9 @@ def generate_daily_blogs():
             
             # Convert to HTML format
             print("  🔄 Converting to HTML format...")
+            print(f"  DEBUG: Before conversion - starts with: {optimized_post[:50]}")
             html_post = convert_text_to_html(optimized_post)
+            print(f"  DEBUG: After conversion - starts with: {html_post[:50]}")
             
             save_to_file(game_directory, "optimized_post.txt", html_post)
             print("  ✅ Optimized blog post saved")
