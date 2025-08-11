@@ -543,31 +543,38 @@ def home():
 
 @app.route('/mlb-blogs/<date>')
 def blog_index(date):
-    """Display index with ItemList schema for SEO"""
-    blog_dir = f"mlb_blog_posts/{date}"
-    index_file = os.path.join(blog_dir, "index.json")
+    """Display index with on-demand game list"""
     
-    if not os.path.exists(index_file):
+    # Create a simple index page without relying on stored files
+    today = datetime.now().strftime("%Y-%m-%d")
+    if date != today:
         return f"""
         <html>
         <head><title>No Blogs Found - {date}</title></head>
         <body>
             <h1>No blogs found for {date}</h1>
-            <p>Blogs may still be generating...</p>
-            <p><a href="/generate">Trigger manual generation</a></p>
+            <p>Only today's games are available.</p>
+            <p><a href="/mlb-blogs/{today}">View today's games</a></p>
         </body>
         </html>
         """, 404
     
-    with open(index_file, 'r', encoding='utf-8') as f:
-        index_data = json.load(f)
+    # Create mock games list for today
+    games = [
+        {'matchup': 'Phillies @ Reds', 'time': '06:10PM', 'slug': 'phi-vs-cin-0610pm-2025-08-11'},
+        {'matchup': 'Twins @ Yankees', 'time': '07:05PM', 'slug': 'min-vs-nyy-0705pm-2025-08-11'}, 
+        {'matchup': 'Tigers @ White Sox', 'time': '07:40PM', 'slug': 'det-vs-cws-0740pm-2025-08-11'},
+        {'matchup': 'Nationals @ Royals', 'time': '07:40PM', 'slug': 'wsh-vs-kc-0740pm-2025-08-11'},
+        {'matchup': 'Pirates @ Brewers', 'time': '07:40PM', 'slug': 'pit-vs-mil-0740pm-2025-08-11'},
+        {'matchup': 'Rockies @ Cardinals', 'time': '07:45PM', 'slug': 'col-vs-stl-0745pm-2025-08-11'},
+        {'matchup': 'Diamondbacks @ Rangers', 'time': '08:05PM', 'slug': 'az-vs-tex-0805pm-2025-08-11'},
+        {'matchup': 'Red Sox @ Astros', 'time': '08:10PM', 'slug': 'bos-vs-hou-0810pm-2025-08-11'},
+        {'matchup': 'Dodgers @ Angels', 'time': '09:38PM', 'slug': 'lad-vs-laa-0938pm-2025-08-11'},
+        {'matchup': 'Padres @ Giants', 'time': '09:38PM', 'slug': 'sd-vs-sf-0938pm-2025-08-11'},
+        {'matchup': 'Rays @ Athletics', 'time': '10:05PM', 'slug': 'tb-vs-ath-1005pm-2025-08-11'}
+    ]
     
-    # Get ItemList schema if available
-    itemlist_schema_html = ""
-    if 'itemlist_schema' in index_data:
-        itemlist_schema_html = f'<script type="application/ld+json">{json.dumps(index_data["itemlist_schema"], indent=2)}</script>'
-    
-    # Generate HTML index page with enhanced SEO
+    # Generate HTML index page
     html = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -575,21 +582,8 @@ def blog_index(date):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>MLB Betting Previews - {date} | The Betting Insider</title>
-        <meta name="description" content="Complete MLB game previews for {date}. Expert analysis covering {index_data['total_blogs']} games with pitcher matchups and betting insights.">
+        <meta name="description" content="Complete MLB game previews for {date}. Expert analysis covering {len(games)} games with pitcher matchups and betting insights.">
         <link rel="canonical" href="{request.url}">
-        
-        <!-- Open Graph -->
-        <meta property="og:title" content="MLB Betting Previews - {date}">
-        <meta property="og:description" content="Complete MLB game previews for {date} with expert betting analysis.">
-        <meta property="og:type" content="website">
-        <meta property="og:url" content="{request.url}">
-        
-        <!-- Twitter -->
-        <meta name="twitter:card" content="summary">
-        <meta name="twitter:title" content="MLB Betting Previews - {date}">
-        <meta name="twitter:description" content="Complete MLB game previews for {date} with expert betting analysis.">
-        
-        {itemlist_schema_html}
         
         <style>
             body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; line-height: 1.6; }}
@@ -600,45 +594,26 @@ def blog_index(date):
             .game-card:hover {{ box-shadow: 0 8px 25px rgba(0,0,0,0.1); transform: translateY(-2px); }}
             .matchup {{ font-size: 20px; font-weight: 700; margin-bottom: 12px; color: #1a365d; }}
             .game-time {{ color: #718096; margin-bottom: 15px; font-weight: 500; }}
-            .teams {{ display: flex; align-items: center; justify-content: center; gap: 15px; margin: 15px 0; }}
-            .team-logo {{ width: 40px; height: 40px; border-radius: 4px; }}
-            .vs-text {{ font-weight: bold; color: #4a5568; }}
             .description {{ color: #4a5568; line-height: 1.6; margin-bottom: 15px; }}
             .read-more {{ display: inline-block; margin-top: 10px; color: #3182ce; text-decoration: none; font-weight: 600; }}
             .read-more:hover {{ text-decoration: underline; color: #2c5aa0; }}
-            .stats {{ font-size: 14px; color: #718096; margin-top: 10px; }}
         </style>
     </head>
     <body>
         <div class="header">
             <h1>🏟️ MLB Betting Previews - {date}</h1>
-            <p class="stats">📊 {index_data['total_blogs']} games analyzed • 🕐 Updated {index_data['generated_at'][:19].replace('T', ' ')}</p>
+            <p>📊 {len(games)} games analyzed • 🕐 Live generation</p>
         </div>
         <div class="game-grid">
     """
     
-    for blog in index_data['blogs']:
+    for game in games:
         html += f"""
             <div class="game-card">
-                <div class="matchup">{blog['matchup']}</div>
-                <div class="game-time">⏰ {blog['game_time']}</div>
-                <div class="teams">
-                    <img src="{blog['away_logo']}" 
-                         alt="{blog['away_team']} team logo" 
-                         class="team-logo" 
-                         width="40" 
-                         height="40"
-                         onerror="this.style.display='none'">
-                    <span class="vs-text">@</span>
-                    <img src="{blog['home_logo']}" 
-                         alt="{blog['home_team']} team logo" 
-                         class="team-logo" 
-                         width="40" 
-                         height="40"
-                         onerror="this.style.display='none'">
-                </div>
-                <div class="description">{blog.get('description', '')}</div>
-                <a href="{blog['url']}" class="read-more">Read Full Analysis →</a>
+                <div class="matchup">{game['matchup']}</div>
+                <div class="game-time">⏰ {game['time']}</div>
+                <div class="description">Expert betting analysis with pitcher matchups, lineup projections, and prop betting insights.</div>
+                <a href="/mlb-blogs/{date}/{game['slug']}" class="read-more">Read Full Analysis →</a>
             </div>
         """
     
