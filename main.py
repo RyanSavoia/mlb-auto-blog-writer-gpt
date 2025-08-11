@@ -1,4 +1,4 @@
-# main.py (Clean SEO-Optimized Version)
+# main.py (Debug HTML Version - Let's see what's actually happening)
 import os
 import threading
 import time
@@ -76,184 +76,51 @@ def auto_link_blog_content(blog_text, max_links=5):
     
     return modified_text
 
-def parse_start_time_iso(local_time_str, tz_offset="-04:00"):
-    """Return HH:MM:SS±TZ for schema; defaults to 19:05 if TBD/unparseable."""
-    try:
-        if not local_time_str or local_time_str == 'TBD':
-            return f"19:05:00{tz_offset}"
-        time_part = local_time_str.split(',')[-1].strip() if ',' in local_time_str else local_time_str.strip()
-        tp = time_part.upper().replace('.', '')
-        # Ensure space before AM/PM (handles "06:40PM" → "06:40 PM")
-        tp = re.sub(r'([AP])M$', r' \1M', tp)
-        from datetime import datetime as dt
-        fmt = "%I:%M %p" if ':' in tp else "%I %p"
-        time_obj = dt.strptime(tp, fmt)
-        return time_obj.strftime(f"%H:%M:00{tz_offset}")
-    except Exception as e:
-        print(f"parse_start_time_iso error for '{local_time_str}': {e}")
-        return f"19:05:00{tz_offset}"
-
-def convert_text_to_html_with_seo(blog_text, game_data, team_logos=None):
-    """Convert plain text to SEO-optimized HTML snippet"""
+def simple_text_to_html(blog_text):
+    """SIMPLE text to HTML converter - let's see what happens"""
     if not blog_text:
-        return blog_text
-
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    start_time_iso = parse_start_time_iso(game_data.get('game_time', 'TBD'))
-    start_datetime = f"{date_str}T{start_time_iso}"
-
-    # JSON-LD: Article + SportsEvent
-    schema_objects = [
-        {
-            "@context": "https://schema.org",
-            "@type": "Article",
-            "headline": f"{game_data['matchup']} MLB Betting Preview - {date_str}",
-            "description": f"Expert betting analysis for {game_data['matchup']} with pitcher matchups and betting insights.",
-            "datePublished": f"{date_str}T00:00:00-04:00",
-            "dateModified": f"{date_str}T00:00:00-04:00",
-            "author": {
-                "@type": "Person",
-                "name": "Mike Chen",
-                "jobTitle": "Senior MLB Betting Analyst",
-                "url": "https://www.thebettinginsider.com/author/mike-chen"
-            },
-            "publisher": {
-                "@type": "Organization",
-                "name": "The Betting Insider",
-                "logo": {
-                    "@type": "ImageObject",
-                    "url": "https://www.thebettinginsider.com/logo.png",
-                    "width": 200,
-                    "height": 60
-                },
-                "url": "https://www.thebettinginsider.com"
-            },
-            "articleSection": "Sports Betting",
-            "keywords": f"MLB, {game_data['away_team']}, {game_data['home_team']}, baseball betting, sports analysis, pitcher matchup",
-            "about": [
-                {"@type": "SportsTeam", "name": game_data['away_team'], "sport": "Baseball"},
-                {"@type": "SportsTeam", "name": game_data['home_team'], "sport": "Baseball"}
-            ]
-        },
-        {
-            "@context": "https://schema.org",
-            "@type": "SportsEvent",
-            "name": f"{game_data['matchup']} ({game_data.get('game_time', 'TBD')})",
-            "description": f"MLB game between {game_data['away_team']} and {game_data['home_team']}",
-            "sport": "Baseball",
-            "startDate": start_datetime,
-            "homeTeam": {"@type": "SportsTeam", "name": game_data['home_team'], "sport": "Baseball"},
-            "awayTeam": {"@type": "SportsTeam", "name": game_data['away_team'], "sport": "Baseball"},
-            "organizer": {"@type": "SportsOrganization", "name": "Major League Baseball"}
-        }
-    ]
+        return "<p>No blog content</p>"
     
-    if game_data.get('venue'):
-        schema_objects[1]["location"] = {
-            "@type": "Place",
-            "name": game_data['venue'],
-            "address": {"@type": "PostalAddress", "addressCountry": "US"}
-        }
-
-    schema_markup = f'<script type="application/ld+json">{json.dumps(schema_objects, indent=2)}</script>'
-
-    # Normalize markdown bold to <strong>
-    text = blog_text
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)  # **bold**
-    text = re.sub(r'\*(?!\s)([^*]+?)\*', r'<strong>\1</strong>', text)  # *bold* (avoid list asterisks)
-
-    lines = [ln.rstrip() for ln in text.split('\n')]
+    print(f"🔧 DEBUG: Converting text to HTML...")
+    print(f"🔧 DEBUG: Input starts with: {blog_text[:100]}")
+    
+    # Replace asterisk formatting with HTML bold
+    html_text = re.sub(r'\*([^*]+)\*', r'<strong>\1</strong>', blog_text)
+    
+    # Convert line breaks to paragraphs
+    lines = html_text.split('\n')
     html_lines = []
-    in_list = False
-
-    # Optional header with team logos
-    if team_logos and team_logos.get('away_logo') and team_logos.get('home_logo'):
-        header_html = f"""
-<div class="game-header" style="display:flex;justify-content:space-between;align-items:center;margin:20px 0;padding:16px;background:#f8fafc;border-radius:10px;">
-  <div style="display:flex;align-items:center;gap:12px;">
-    <img src="{team_logos['away_logo']}" alt="{game_data['away_team']} team logo" width="48" height="48" style="border-radius:6px;">
-    <span style="font-weight:700;">{game_data['away_team']}</span>
-  </div>
-  <div style="text-align:center;">
-    <div style="font-weight:700;">@</div>
-    <div style="color:#555;font-size:14px;">{game_data.get('game_time','TBD')}</div>
-  </div>
-  <div style="display:flex;align-items:center;gap:12px;">
-    <span style="font-weight:700;">{game_data['home_team']}</span>
-    <img src="{team_logos['home_logo']}" alt="{game_data['home_team']} team logo" width="48" height="48" style="border-radius:6px;">
-  </div>
-</div>
-"""
-        html_lines.append(header_html)
-
-    # Convert lines to semantic HTML
-    for raw in lines:
-        line = raw.strip()
+    
+    for line in lines:
+        line = line.strip()
         if not line:
-            if in_list:
-                html_lines.append('</ul>')
-                in_list = False
             html_lines.append('<br>')
             continue
-
-        # H1 if contains MLB Betting Preview
+            
+        # Main titles with "MLB Betting Preview"
         if 'MLB Betting Preview' in line:
-            if in_list: html_lines.append('</ul>'); in_list = False
-            clean = re.sub(r'^<strong>(.+?)</strong>$', r'\1', line)
-            html_lines.append(f'<h1>{clean}</h1>')
-            continue
-
-        # Game Time → H2
-        if re.match(r'^\s*(?:<strong>)?\s*game time:\s*(?:</strong>)?', line, flags=re.IGNORECASE):
-            if in_list: html_lines.append('</ul>'); in_list = False
+            html_lines.append(f'<h1>{line}</h1>')
+        # Game Time
+        elif 'Game Time:' in line:
             html_lines.append(f'<h2>{line}</h2>')
-            continue
-
-        # Numbered sections → H2
-        if re.match(r'^\d+\.\s+', line):
-            if in_list: html_lines.append('</ul>'); in_list = False
+        # Numbered sections
+        elif re.match(r'^\d+\.', line) or re.match(r'^###\s+\d+\.', line):
             html_lines.append(f'<h2>{line}</h2>')
-            continue
-
-        # **Header:** → H3
-        if re.match(r'^<strong>.+?:</strong>\s*$', line):
-            if in_list: html_lines.append('</ul>'); in_list = False
-            html_lines.append(f'<h3>{line}</h3>')
-            continue
-
-        # STEP → H4
-        if line.upper().startswith('STEP'):
-            if in_list: html_lines.append('</ul>'); in_list = False
-            html_lines.append(f'<h4><strong>{line}</strong></h4>')
-            continue
-
-        # Bullets
-        if line.startswith('- ') or line.startswith('• '):
-            if not in_list:
-                html_lines.append('<ul>'); in_list = True
-            html_lines.append(f'<li>{line[2:].strip()}</li>')
-            continue
-
-        # Default → paragraph
-        if in_list:
-            html_lines.append('</ul>'); in_list = False
-        html_lines.append(f'<p>{line}</p>')
-
-    if in_list:
-        html_lines.append('</ul>')
-
-    # Methodology footer
-    methodology_html = """
-<div class="methodology" style="margin-top:24px;padding:16px;background:#f7fafc;border-left:4px solid #3182ce;border-radius:8px;">
-  <h4 style="margin:0 0 8px 0;">📊 Methodology & Sources</h4>
-  <p style="margin:0;">Analysis uses pitch-type performance, platoon splits, and contact-quality metrics (xBA, xSLG, whiff%) from advanced MLB data.</p>
-  <p style="margin:6px 0 0 0;font-size:12px;color:#555;">
-    Primary data: <a href="https://baseballsavant.mlb.com" rel="noopener" target="_blank">Baseball Savant</a>.
-  </p>
-</div>
-"""
-
-    return '\n'.join([schema_markup] + html_lines + [methodology_html])
+        # Headers with ###
+        elif line.startswith('###'):
+            clean_line = line.replace('###', '').strip()
+            html_lines.append(f'<h3>{clean_line}</h3>')
+        # Headers with ####
+        elif line.startswith('####'):
+            clean_line = line.replace('####', '').strip()
+            html_lines.append(f'<h4>{clean_line}</h4>')
+        # Regular paragraphs
+        else:
+            html_lines.append(f'<p>{line}</p>')
+    
+    result = '\n'.join(html_lines)
+    print(f"🔧 DEBUG: Output starts with: {result[:100]}")
+    return result
 
 def save_to_file(directory, filename, content):
     if not os.path.exists(directory):
@@ -325,25 +192,29 @@ def generate_daily_blogs():
             # Generate blog post
             blog_post = generate_mlb_blog_post(topic, keywords, game_data)
             save_to_file(game_directory, "original_post.txt", blog_post)
+            print(f"  📝 Original blog post: {len(blog_post)} chars")
             
             # Audit and optimize
             optimized_post = audit_blog_post(blog_post)
+            print(f"  🔍 Audited blog post: {len(optimized_post)} chars")
             
             # Add internal links
             optimized_post = auto_link_blog_content(optimized_post, max_links=8)
+            print(f"  🔗 Added internal links: {len(optimized_post)} chars")
             
-            # Generate team logos (before HTML build so we can embed them)
+            # Convert to HTML - SIMPLE VERSION FOR DEBUGGING
+            html_post = simple_text_to_html(optimized_post)
+            print(f"  🔄 Converted to HTML: {len(html_post)} chars")
+            
+            save_to_file(game_directory, "optimized_post.html", html_post)
+            print(f"  ✅ Saved HTML blog post")
+            
+            # Generate team logos
             away_team = game_data['away_team']
             home_team = game_data['home_team']
             team_logos = generate_team_logos_for_matchup(away_team, home_team)
+            print(f"  🏆 Generated team logos: {away_team} & {home_team}")
             
-            # Convert to HTML with full SEO optimization (pass logos)
-            html_post = convert_text_to_html_with_seo(optimized_post, game_data, team_logos)
-            
-            save_to_file(game_directory, "optimized_post.html", html_post)
-            print(f"  ✅ Generated HTML blog post with schema & header")
-            
-            # Team logos and metadata (keep for reference files)
             logo_info = f"""Away Team: {team_logos['away_team']}
 Away Logo: {team_logos['away_logo']}
 Home Team: {team_logos['home_team']}
@@ -354,20 +225,25 @@ Home Logo: {team_logos['home_logo']}"""
             
         except Exception as e:
             print(f"  ❌ Error processing {topic}: {e}")
+            import traceback
+            traceback.print_exc()
             continue
     
     print(f"\n🎉 Completed! Generated {len(blog_topics)} blog posts in {daily_directory}")
 
 @app.route('/')
 def display_blogs():
-    """Display all blogs as raw HTML"""
+    """Display all blogs as raw HTML - DEBUG VERSION"""
     today = datetime.now().strftime("%Y-%m-%d")
     blog_dir = f"mlb_blog_posts/{today}"
+    
+    print(f"🔧 DEBUG: Looking for blogs in: {blog_dir}")
     
     all_blogs_html = []
     
     if os.path.exists(blog_dir):
         folders = sorted([f for f in os.listdir(blog_dir) if os.path.isdir(os.path.join(blog_dir, f))])
+        print(f"🔧 DEBUG: Found {len(folders)} folders")
         
         for folder in folders:
             folder_path = os.path.join(blog_dir, folder)
@@ -376,21 +252,51 @@ def display_blogs():
             if os.path.exists(html_file):
                 with open(html_file, 'r', encoding='utf-8') as f:
                     blog_content = f.read()
+                    print(f"🔧 DEBUG: Loaded blog from {folder}, length: {len(blog_content)}")
+                    print(f"🔧 DEBUG: Content starts with: {blog_content[:100]}")
                     all_blogs_html.append(blog_content)
+            else:
+                print(f"🔧 DEBUG: No HTML file found in {folder}")
+    else:
+        print(f"🔧 DEBUG: Blog directory doesn't exist: {blog_dir}")
     
     if not all_blogs_html:
-        return f"<h1>No blogs found for {today}</h1><p>Blogs may still be generating...</p>"
+        return f"""
+        <h1>No blogs found for {today}</h1>
+        <p>Blogs may still be generating...</p>
+        <p>Debug info: Looked in {blog_dir}</p>
+        """
     
-    # Just return all blogs concatenated with separators
-    combined_html = f"<h1>🏟️ MLB BLOG POSTS FOR {today.upper()}</h1>"
-    combined_html += f"<p>🕐 Generated at: {datetime.now().strftime('%I:%M %p ET')}</p>"
-    combined_html += f"<p>📊 Total Games: {len(all_blogs_html)}</p>"
-    combined_html += "<hr>"
+    # Create simple HTML page
+    combined_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>MLB Blog Posts - {today}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }}
+            h1 {{ color: #1a365d; }}
+            h2 {{ color: #2c5aa0; }}
+            h3 {{ color: #4a5568; }}
+            hr {{ margin: 30px 0; }}
+        </style>
+    </head>
+    <body>
+        <h1>🏟️ MLB BLOG POSTS FOR {today.upper()}</h1>
+        <p>🕐 Generated at: {datetime.now().strftime('%I:%M %p ET')}</p>
+        <p>📊 Total Games: {len(all_blogs_html)}</p>
+        <hr>
+    """
     
     for i, blog_html in enumerate(all_blogs_html):
         combined_html += blog_html
         if i < len(all_blogs_html) - 1:
-            combined_html += "<hr><br>"
+            combined_html += "<hr>"
+    
+    combined_html += """
+    </body>
+    </html>
+    """
     
     return Response(combined_html, mimetype='text/html')
 
@@ -411,7 +317,7 @@ def run_scheduler():
         time.sleep(60)
 
 def initialize_app():
-    print("🚀 Initializing Simple MLB Blog Service")
+    print("🚀 Initializing Simple MLB Blog Service - DEBUG VERSION")
     
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
