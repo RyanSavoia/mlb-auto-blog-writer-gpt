@@ -652,44 +652,126 @@ def blog_index(date):
 
 @app.route('/mlb-blogs/<date>/<slug>')
 def show_blog(date, slug):
-    """Display individual blog post with comprehensive SEO optimization"""
-    folder_path = f"mlb_blog_posts/{date}/{slug}"
-    file_path = os.path.join(folder_path, "optimized_post.txt")
-    meta_path = os.path.join(folder_path, "meta.json")
-    game_data_path = os.path.join(folder_path, "game_data.json")
+    """Generate and display individual blog post on-demand"""
     
-    if not os.path.exists(file_path):
-        return "<h1>Blog not found</h1>", 404
+    # Extract game info from slug
+    # Slug format: "det-vs-cws-0740pm-2025-08-11"
+    try:
+        # Parse slug to get team info and time
+        parts = slug.split('-')
+        if len(parts) >= 4:
+            away_team_code = parts[0].upper()
+            home_team_code = parts[2].upper()  # Skip "vs"
+            
+            # Map common team codes to full names
+            team_map = {
+                'DET': 'Tigers', 'CWS': 'White Sox', 'MIN': 'Twins', 'NYY': 'Yankees',
+                'PHI': 'Phillies', 'CIN': 'Reds', 'WSH': 'Nationals', 'KC': 'Royals',
+                'PIT': 'Pirates', 'MIL': 'Brewers', 'COL': 'Rockies', 'STL': 'Cardinals',
+                'AZ': 'Diamondbacks', 'TEX': 'Rangers', 'BOS': 'Red Sox', 'HOU': 'Astros',
+                'LAD': 'Dodgers', 'LAA': 'Angels', 'SD': 'Padres', 'SF': 'Giants',
+                'TB': 'Rays', 'ATH': 'Athletics'
+            }
+            
+            away_team = team_map.get(away_team_code, away_team_code)
+            home_team = team_map.get(home_team_code, home_team_code)
+            
+            # Create mock game data for blog generation
+            game_data = {
+                'matchup': f"{away_team} @ {home_team}",
+                'away_team': away_team,
+                'home_team': home_team,
+                'game_time': '7:40 PM',  # Default time
+                'game_date': date
+            }
+            
+            # Generate blog content on-demand
+            topic = f"{away_team} at {home_team} MLB Betting Preview"
+            keywords = f"MLB, {away_team}, {home_team}, betting, preview"
+            
+            try:
+                # Generate the blog post
+                blog_post = generate_mlb_blog_post(topic, keywords, game_data)
+                
+                # Optimize it
+                optimized_post = audit_blog_post(blog_post)
+                
+                # Add internal links
+                optimized_post = auto_link_blog_content(optimized_post, max_links=8)
+                
+                # Convert to HTML
+                html_post = convert_text_to_html(optimized_post)
+                
+                # Get team logos
+                team_logos = generate_team_logos_for_matchup(away_team, home_team)
+                
+                # Create meta info
+                meta = {
+                    'title': f"{away_team} vs {home_team} MLB Betting Preview - {date}",
+                    'description': f"Expert betting analysis for {away_team} vs {home_team} on {date}",
+                    'matchup': game_data['matchup'],
+                    'game_time': game_data.get('game_time', 'TBD'),
+                    'away_team': away_team,
+                    'home_team': home_team,
+                    'away_logo': team_logos['away_logo'],
+                    'home_logo': team_logos['home_logo']
+                }
+                
+            except Exception as e:
+                # Fallback if blog generation fails
+                print(f"Error generating blog: {e}")
+                html_post = f"""
+                <h1>{away_team} vs {home_team} MLB Betting Preview</h1>
+                <p>Game preview for {away_team} at {home_team} on {date}.</p>
+                <p>Detailed analysis coming soon...</p>
+                """
+                meta = {
+                    'title': f"{away_team} vs {home_team} MLB Betting Preview",
+                    'description': f"MLB game preview for {away_team} vs {home_team}",
+                    'away_team': away_team,
+                    'home_team': home_team,
+                    'away_logo': '',
+                    'home_logo': ''
+                }
+            
+        else:
+            raise ValueError("Invalid slug format")
+            
+    except Exception as e:
+        print(f"Error parsing slug {slug}: {e}")
+        return "<h1>Blog not found</h1><p>Invalid URL format.</p>", 404
     
-    with open(file_path, 'r', encoding='utf-8') as f:
-        blog_content = f.read()
-    
-    meta = {}
-    if os.path.exists(meta_path):
-        with open(meta_path, 'r', encoding='utf-8') as f:
-            meta = json.load(f)
-    
-    game_data = {}
-    if os.path.exists(game_data_path):
-        with open(game_data_path, 'r', encoding='utf-8') as f:
-            game_data = json.load(f)
-    
-    # Generate comprehensive schemas with absolute URL
+    # Generate comprehensive schemas
     canonical_url = request.url
-    enhanced_schemas = generate_comprehensive_schema(game_data, blog_content, slug, date, canonical_url)
     
-    # Pre-calculate meta values to avoid f-string nesting issues
-    title_fallback = f"MLB: {meta.get('matchup', 'Game Preview')}"
-    meta_title = meta.get('title', title_fallback)
-    meta_desc = meta.get('description', '')
-    featured_image = meta.get('featured_image', meta.get('away_logo', ''))
+    # Create simple schemas for the generated content
+    enhanced_schemas = [{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": meta['title'],
+        "description": meta['description'],
+        "datePublished": f"{date}T00:00:00-04:00",
+        "author": {
+            "@type": "Person",
+            "name": "Mike Chen",
+            "jobTitle": "Senior MLB Betting Analyst"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "The Betting Insider"
+        }
+    }]
     
-    # Enhanced SEO meta tags with absolute URLs
+    # Pre-calculate meta values
+    meta_title = meta['title']
+    meta_desc = meta['description']
+    featured_image = meta.get('away_logo', '')
+    
+    # Enhanced SEO meta tags
     seo_meta_html = f"""
     <!-- Enhanced SEO Meta Tags -->
     <meta name="title" content="{meta_title}" />
     <meta name="description" content="{meta_desc}" />
-    <meta name="keywords" content="MLB betting, {meta.get('away_team', '')}, {meta.get('home_team', '')}, baseball analysis, sports betting, pitcher matchup" />
     <link rel="canonical" href="{canonical_url}" />
     
     <!-- Open Graph / Facebook -->
@@ -697,89 +779,30 @@ def show_blog(date, slug):
     <meta property="og:url" content="{canonical_url}" />
     <meta property="og:title" content="{meta_title}" />
     <meta property="og:description" content="{meta_desc}" />
-    <meta property="og:image" content="{featured_image}" />
-    <meta property="og:image:width" content="400" />
-    <meta property="og:image:height" content="400" />
-    <meta property="og:site_name" content="The Betting Insider" />
-    <meta property="article:author" content="Mike Chen" />
-    <meta property="article:published_time" content="{date}T00:00:00-04:00" />
-    <meta property="article:section" content="Sports Betting" />
-    <meta property="article:tag" content="MLB" />
-    <meta property="article:tag" content="{meta.get('away_team', '')}" />
-    <meta property="article:tag" content="{meta.get('home_team', '')}" />
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="{canonical_url}" />
     <meta property="twitter:title" content="{meta_title}" />
     <meta property="twitter:description" content="{meta_desc}" />
-    <meta property="twitter:image" content="{featured_image}" />
-    <meta property="twitter:creator" content="@BettingInsider" />
-    
-    <!-- Additional SEO -->
-    <meta name="robots" content="index, follow" />
-    <meta name="author" content="Mike Chen" />
     """
     
-    # Enhanced team metadata with proper dimensions
+    # Team header
     team_meta_html = f"""
-    <div class="game-header" style="display: flex; justify-content: space-between; align-items: center; margin: 30px 0; padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <div class="away-team" data-team="{meta.get('away_team', '')}" data-logo="{meta.get('away_logo', '')}" style="display: flex; align-items: center; gap: 15px;">
-            <img src="{meta.get('away_logo', '')}" 
-                 alt="{meta.get('away_team', '')} team logo" 
-                 class="team-logo" 
-                 width="48" 
-                 height="48"
-                 style="border-radius: 6px;" 
-                 onerror="this.style.display='none'">
+    <div class="game-header" style="display: flex; justify-content: space-between; align-items: center; margin: 30px 0; padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-radius: 12px;">
+        <div class="away-team" style="display: flex; align-items: center; gap: 15px;">
             <span class="team-name" style="font-weight: 700; font-size: 18px; color: #1a365d;">{meta.get('away_team', '')}</span>
         </div>
         <div class="game-info" style="text-align: center;">
             <div class="vs-text" style="font-size: 24px; font-weight: bold; color: #4a5568;">@</div>
-            <div class="game-time" style="color: #718096; font-size: 14px; font-weight: 500;">{meta.get('game_time', 'TBD')}</div>
+            <div class="game-time" style="color: #718096; font-size: 14px;">{meta.get('game_time', 'TBD')}</div>
         </div>
-        <div class="home-team" data-team="{meta.get('home_team', '')}" data-logo="{meta.get('home_logo', '')}" style="display: flex; align-items: center; gap: 15px;">
+        <div class="home-team" style="display: flex; align-items: center; gap: 15px;">
             <span class="team-name" style="font-weight: 700; font-size: 18px; color: #1a365d;">{meta.get('home_team', '')}</span>
-            <img src="{meta.get('home_logo', '')}" 
-                 alt="{meta.get('home_team', '')} team logo" 
-                 class="team-logo" 
-                 width="48" 
-                 height="48"
-                 style="border-radius: 6px;" 
-                 onerror="this.style.display='none'">
         </div>
     </div>
     """
     
-    # Author byline box for E-A-T
-    author_box_html = f"""
-    <div class="author-box" style="margin: 30px 0; padding: 20px; background: #f7fafc; border-left: 4px solid #3182ce; border-radius: 8px;">
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <div class="author-avatar" style="width: 60px; height: 60px; background: #3182ce; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">MC</div>
-            <div>
-                <h4 style="margin: 0 0 5px 0; color: #1a365d;">Mike Chen</h4>
-                <p style="margin: 0; color: #4a5568; font-size: 14px;">Senior MLB Betting Analyst with 8+ years covering advanced metrics, pitcher arsenals, and market analysis. Specializes in data-driven betting insights and performance projections.</p>
-            </div>
-        </div>
-    </div>
-    """
-    
-    # Methodology footer with actual data source
-    methodology_footer = f"""
-    <div class="methodology-footer" style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-top: 3px solid #e2e8f0;">
-        <h4 style="margin: 0 0 15px 0; color: #1a365d;">📊 Methodology & Sources</h4>
-        <p style="margin: 0 0 10px 0; color: #4a5568; font-size: 14px;">
-            Analysis based on advanced baseball metrics including pitch arsenal data, historical matchup performance, and expected batting averages (xBA) calculated using pitch-type-specific outcomes against individual batters.
-        </p>
-        <p style="margin: 0; font-size: 12px; color: #718096;">
-            <strong>Primary Data Source:</strong> 
-            <a href="https://baseballsavant.mlb.com" target="_blank" rel="noopener">Baseball Savant</a> - 
-            MLB's official advanced analytics platform providing pitch-by-pitch data, arsenal metrics, and performance statistics.
-        </p>
-    </div>
-    """
-    
-    # Combined JSON-LD schemas
+    # JSON-LD schema
     schema_html = f'<script type="application/ld+json">{json.dumps(enhanced_schemas, indent=2)}</script>'
     
     # Generate complete HTML document
@@ -808,27 +831,11 @@ def show_blog(date, slug):
 </head>
 <body>
     {team_meta_html}
-    {author_box_html}
     
     <!-- Main Blog Content -->
     <article>
-        {blog_content}
+        {html_post}
     </article>
-    
-    {methodology_footer}
-
-    <!-- Metadata for Webflow CMS -->
-    <div class="blog-metadata" style="display:none;">
-        <span class="matchup">{meta.get('matchup', '')}</span>
-        <span class="date">{date}</span>
-        <span class="slug">{slug}</span>
-        <span class="away-team">{meta.get('away_team', '')}</span>
-        <span class="home-team">{meta.get('home_team', '')}</span>
-        <span class="away-logo-url">{meta.get('away_logo', '')}</span>
-        <span class="home-logo-url">{meta.get('home_logo', '')}</span>
-        <span class="game-time">{meta.get('game_time', 'TBD')}</span>
-        <span class="word-count">{meta.get('word_count', 0)}</span>
-    </div>
 </body>
 </html>"""
     
