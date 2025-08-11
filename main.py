@@ -356,10 +356,10 @@ def generate_daily_blogs():
             save_to_file(game_directory, "original_post.txt", blog_post)
             print(f"  ✅ Generated: {len(blog_post)} characters")
             
-            # Audit and optimize
-            print("  🔍 Auditing content...")
-            optimized_post = audit_blog_post(blog_post)
-            print(f"  ✅ Audited: {len(optimized_post)} characters")
+            # Skip audit for now to test if it's breaking HTML formatting
+            print("  🔍 Skipping audit to test HTML formatting...")
+            optimized_post = blog_post  # Skip audit completely
+            print(f"  ✅ Using original post: {len(optimized_post)} characters")
             
             # Add internal links
             print("  🔗 Adding internal links...")
@@ -383,6 +383,15 @@ def generate_daily_blogs():
             print(f"  ✅ HTML generated: {len(html_post)} characters")
             
             save_to_file(game_directory, "optimized_post.html", html_post)
+            
+            # DEBUG: Save a simple test HTML file to verify saving works
+            test_html = f"<h1>TEST HTML FOR {game_data['matchup']}</h1><p>This should be HTML</p>"
+            save_to_file(game_directory, "test.html", test_html)
+            
+            # DEBUG: Also save the original text for comparison
+            save_to_file(game_directory, "debug_original.txt", optimized_post)
+            
+            print(f"  🔧 DEBUG: Saved files - HTML starts with: {html_post[:100]}")
             
             # Save metadata
             if team_logos:
@@ -408,21 +417,47 @@ def display_blogs():
     today = datetime.now().strftime("%Y-%m-%d")
     blog_dir = f"mlb_blog_posts/{today}"
     
+    print(f"🔧 DISPLAY DEBUG: Looking in {blog_dir}")
+    
     all_blogs_html = []
     
     if os.path.exists(blog_dir):
         folders = sorted([f for f in os.listdir(blog_dir) if os.path.isdir(os.path.join(blog_dir, f))])
+        print(f"🔧 DISPLAY DEBUG: Found {len(folders)} folders")
         
         for folder in folders:
             folder_path = os.path.join(blog_dir, folder)
             html_file = os.path.join(folder_path, "optimized_post.html")
             
+            print(f"🔧 DISPLAY DEBUG: Checking {folder}")
+            print(f"🔧 DISPLAY DEBUG: Looking for file: {html_file}")
+            print(f"🔧 DISPLAY DEBUG: File exists: {os.path.exists(html_file)}")
+            
             if os.path.exists(html_file):
                 with open(html_file, 'r', encoding='utf-8') as f:
                     blog_content = f.read()
+                    print(f"🔧 DISPLAY DEBUG: Loaded {len(blog_content)} chars from {folder}")
+                    print(f"🔧 DISPLAY DEBUG: Content starts with: '{blog_content[:100]}'")
+                    print(f"🔧 DISPLAY DEBUG: Contains <h1>: {'<h1>' in blog_content}")
                     all_blogs_html.append(blog_content)
+            else:
+                # List all files in the folder to see what's actually there
+                files = os.listdir(folder_path)
+                print(f"🔧 DISPLAY DEBUG: Files in {folder}: {files}")
+    else:
+        print(f"🔧 DISPLAY DEBUG: Directory doesn't exist: {blog_dir}")
     
     if not all_blogs_html:
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>No Blogs Found</title></head>
+        <body>
+            <h1>No blogs found for {today}</h1>
+            <p>Blogs may still be generating...</p>
+        </body>
+        </html>
+        """
         return f"""
         <!DOCTYPE html>
         <html>
