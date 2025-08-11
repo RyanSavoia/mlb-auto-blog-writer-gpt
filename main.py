@@ -118,7 +118,7 @@ def auto_link_blog_content(blog_text, max_links=5):
     return modified_text
 
 def convert_text_to_html(blog_text):
-    """Convert text blog to proper semantic HTML format"""
+    """Convert text blog to proper semantic HTML format - BULLETPROOF VERSION"""
     if not blog_text:
         return blog_text
     
@@ -145,24 +145,23 @@ def convert_text_to_html(blog_text):
             if in_list:
                 html_lines.append('</ul>')
                 in_list = False
-            clean_line = re.sub(r'^\*\*(.+?)\*\*$', r'\1', line)
+            clean_line = line.replace('**', '').strip()
             html_lines.append(f'<h1>{clean_line}</h1>')
         
-        # Game Time headers - H2 (handles all Game Time variations)
-        elif re.match(r'^(?:\*\*)?Game Time:(?:\*\*)?\s*', line, flags=re.IGNORECASE):
+        # Game Time headers - H2 (SIMPLIFIED - no complex regex)
+        elif 'Game Time:' in line:
             if in_list:
                 html_lines.append('</ul>')
                 in_list = False
-            # Normalize "**Game Time:** " → "Game Time: "
-            clean_line = re.sub(r'^\*\*(Game Time:)\*\*\s*', r'\1 ', line, flags=re.IGNORECASE)
+            clean_line = line.replace('**', '').strip()
             html_lines.append(f'<h2>{clean_line}</h2>')
         
         # Numbered sections (1. Brief Intro, 2. Pitcher Analysis, etc.) - H2
-        elif re.match(r'^\*?\*?\d+\.\s+', line):
+        elif line.startswith(('1.', '2.', '3.', '4.', '5.', '**1.', '**2.', '**3.', '**4.', '**5.')):
             if in_list:
                 html_lines.append('</ul>')
                 in_list = False
-            clean_line = re.sub(r'^\*?\*?(\d+\.\s+.*?)\*?\*?$', r'\1', line)
+            clean_line = line.replace('**', '').strip()
             html_lines.append(f'<h2>{clean_line}</h2>')
         
         # Bold headers that end with colon - H3
@@ -170,15 +169,15 @@ def convert_text_to_html(blog_text):
             if in_list:
                 html_lines.append('</ul>')
                 in_list = False
-            clean_line = re.sub(r'^\*\*(.+?):\*\*$', r'\1:', line)
+            clean_line = line.replace('**', '').replace(':', ':').strip()
             html_lines.append(f'<h3>{clean_line}</h3>')
         
         # Other bold headers (start and end with **) - H3
-        elif line.startswith('**') and line.endswith('**'):
+        elif line.startswith('**') and line.endswith('**') and len(line) < 100:  # Avoid long paragraphs
             if in_list:
                 html_lines.append('</ul>')
                 in_list = False
-            clean_line = re.sub(r'^\*\*(.+?)\*\*$', r'\1', line)
+            clean_line = line.replace('**', '').strip()
             html_lines.append(f'<h3>{clean_line}</h3>')
         
         # STEP headers (special formatting) - H4
@@ -195,7 +194,7 @@ def convert_text_to_html(blog_text):
                 in_list = True
             clean_line = line[2:].strip()
             # Handle bold text within list items
-            clean_line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', clean_line)
+            clean_line = clean_line.replace('**', '<strong>').replace('**', '</strong>')
             html_lines.append(f'<li>{clean_line}</li>')
         
         # Regular paragraphs
@@ -203,8 +202,19 @@ def convert_text_to_html(blog_text):
             if in_list:
                 html_lines.append('</ul>')
                 in_list = False
-            # Handle bold text within paragraphs
-            clean_line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+            # Handle bold text within paragraphs - simple replacement
+            clean_line = line
+            # Count ** occurrences and pair them up
+            bold_count = line.count('**')
+            if bold_count >= 2 and bold_count % 2 == 0:
+                # Replace pairs of ** with strong tags
+                parts = line.split('**')
+                clean_line = ''
+                for i, part in enumerate(parts):
+                    if i % 2 == 0:
+                        clean_line += part
+                    else:
+                        clean_line += f'<strong>{part}</strong>'
             html_lines.append(f'<p>{clean_line}</p>')
     
     # Close any remaining open list
