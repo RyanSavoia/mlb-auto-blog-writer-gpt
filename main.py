@@ -379,7 +379,9 @@ def generate_daily_blogs():
             
             # Convert to HTML with full SEO optimization
             print("  🔄 Converting to SEO-optimized HTML...")
+            print(f"  🔧 INPUT to converter: '{optimized_post[:200]}...'")
             html_post = convert_text_to_html_with_seo(optimized_post, game_data, team_logos)
+            print(f"  🔧 OUTPUT from converter: '{html_post[:200]}...'")
             print(f"  ✅ HTML generated: {len(html_post)} characters")
             
             save_to_file(game_directory, "optimized_post.html", html_post)
@@ -509,7 +511,16 @@ def display_blogs():
     </html>
     """
     
-    return Response(combined_html, mimetype='text/html')
+    print(f"🔧 FINAL DEBUG: About to return {len(combined_html)} chars")
+    print(f"🔧 FINAL DEBUG: HTML starts with: '{combined_html[:200]}'")
+    print(f"🔧 FINAL DEBUG: Contains DOCTYPE: {'<!DOCTYPE html>' in combined_html}")
+    
+    return Response(combined_html, mimetype='text/html', headers={
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    })
 
 @app.route('/generate')
 def manual_generate():
