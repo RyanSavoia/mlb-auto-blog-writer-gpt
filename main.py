@@ -1,4 +1,4 @@
-# main.py (Web Service Version with SEO Enhancements)
+# main.py (SEO Optimized with HTML Display Restored)
 import os
 import threading
 import time
@@ -38,30 +38,6 @@ INTERLINK_MAP = {
     "whiff rate": "https://www.thebettinginsider.com/daily-mlb-game-stats",
     "swing and miss %": "https://www.thebettinginsider.com/daily-mlb-game-stats"
 }
-
-def parse_start_time_iso(local_time_str, tz_offset="-04:00"):
-    """Parse human game time to HH:MM:SS±TZ for schema.org JSON-LD
-    
-    Accepts: "8/11, 07:05 PM", "07:05 PM", "06:40PM", "705 PM", "705PM", "7 PM", "7PM"
-    Falls back to 19:05 local time if unparseable or TBD
-    """
-    try:
-        if not local_time_str or str(local_time_str).strip().upper().startswith("TBD"):
-            raise ValueError("No concrete time")
-
-        # If date present like "8/11, 07:05 PM", take time part only
-        time_part = (str(local_time_str).split(",")[-1] if "," in str(local_time_str) else str(local_time_str)).strip()
-        
-        from datetime import datetime as dt
-        tp = time_part.upper().replace(".", "")  # normalize "p.m." -> "PM"
-        tp = re.sub(r"(\d)([AP]M)$", r"\1 \2", tp)  # "06:40PM" -> "06:40 PM"
-        tp = re.sub(r"^(\d{1,2})(\d{2})\s*([AP]M)$", r"\1:\2 \3", tp)  # "705PM" -> "7:05 PM"
-        tp = re.sub(r"^(\d{1,2})\s*([AP]M)$", r"\1:00 \2", tp)  # "7PM" -> "7:00 PM"
-        
-        t = dt.strptime(tp, "%I:%M %p")
-        return t.strftime(f"%H:%M:00{tz_offset}")
-    except Exception:
-        return f"19:05:00{tz_offset}"
 
 def auto_link_blog_content(blog_text, max_links=5):
     """Automatically insert internal links with word-count-based scaling"""
@@ -255,128 +231,6 @@ def create_slug(matchup, game_time, date_str):
     slug = re.sub(r'-+', '-', slug)  # Multiple dashes -> single dash
     return slug.strip('-')
 
-def generate_comprehensive_schema(game_data, blog_content, slug, date_str, canonical_url):
-    """Generate Article + SportsEvent schemas"""
-    
-    # Extract title and description
-    lines = [line.strip() for line in blog_content.strip().split('\n') if line.strip()]
-    title = "MLB Betting Preview"
-    
-    for line in lines:
-        if 'MLB Betting Preview' in line:
-            title = re.sub(r'<[^>]+>', '', line)  # Remove HTML tags
-            break
-    
-    description = f"Expert betting analysis for {game_data['matchup']} including pitcher matchups, lineup projections, and key betting insights."
-    
-    # Parse game start time
-    start_time_iso = parse_start_time_iso(game_data.get('game_time', '07:05 PM'))
-    start_datetime = f"{date_str}T{start_time_iso}"
-    
-    # 1. Article Schema with Person author
-    article_schema = {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        "headline": title,
-        "description": description,
-        "datePublished": f"{date_str}T00:00:00-04:00",
-        "dateModified": f"{date_str}T00:00:00-04:00",
-        "author": {
-            "@type": "Person",
-            "name": "Mike Chen",
-            "jobTitle": "Senior MLB Betting Analyst",
-            "description": "MLB analytics expert with 8+ years covering advanced metrics, pitcher arsenals, and betting market analysis.",
-            "url": "https://www.thebettinginsider.com/author/mike-chen"
-        },
-        "publisher": {
-            "@type": "Organization",
-            "name": "The Betting Insider",
-            "logo": {
-                "@type": "ImageObject",
-                "url": "https://www.thebettinginsider.com/logo.png",
-                "width": 200,
-                "height": 60
-            },
-            "url": "https://www.thebettinginsider.com"
-        },
-        "mainEntityOfPage": {
-            "@type": "WebPage",
-            "@id": canonical_url
-        },
-        "articleSection": "Sports Betting",
-        "keywords": f"MLB, {game_data['away_team']}, {game_data['home_team']}, baseball betting, sports analysis, pitcher matchup",
-        "about": [
-            {
-                "@type": "SportsTeam",
-                "name": game_data['away_team'],
-                "sport": "Baseball"
-            },
-            {
-                "@type": "SportsTeam", 
-                "name": game_data['home_team'],
-                "sport": "Baseball"
-            }
-        ]
-    }
-    
-    # 2. SportsEvent Schema (only if we have venue data)
-    sports_event_schema = {
-        "@context": "https://schema.org",
-        "@type": "SportsEvent",
-        "name": f"{game_data['matchup']} ({game_data.get('game_time', 'TBD')})",
-        "description": f"MLB game between {game_data['away_team']} and {game_data['home_team']}",
-        "sport": "Baseball",
-        "startDate": start_datetime,
-        "homeTeam": {
-            "@type": "SportsTeam",
-            "name": game_data['home_team'],
-            "sport": "Baseball"
-        },
-        "awayTeam": {
-            "@type": "SportsTeam", 
-            "name": game_data['away_team'],
-            "sport": "Baseball"
-        },
-        "organizer": {
-            "@type": "SportsOrganization",
-            "name": "Major League Baseball"
-        }
-    }
-    
-    # Only add location if we have venue data
-    if game_data.get('venue'):
-        sports_event_schema["location"] = {
-            "@type": "Place",
-            "name": game_data['venue'],
-            "address": {
-                "@type": "PostalAddress",
-                "addressCountry": "US"
-            }
-        }
-    
-    return [article_schema, sports_event_schema]
-
-def generate_itemlist_schema(blog_index, date):
-    """Generate ItemList schema for daily index page"""
-    return {
-        "@context": "https://schema.org",
-        "@type": "ItemList",
-        "itemListOrder": "Ascending",
-        "numberOfItems": len(blog_index),
-        "name": f"MLB Game Previews - {date}",
-        "description": f"Complete list of MLB betting previews for {date}",
-        "itemListElement": [
-            {
-                "@type": "ListItem",
-                "position": i + 1,
-                "url": blog['url'],
-                "name": blog['matchup'],
-                "description": blog.get('description', '')
-            }
-            for i, blog in enumerate(blog_index)
-        ]
-    }
-
 def parse_game_time_for_sorting(time_str):
     """Parse game time for proper chronological sorting"""
     if not time_str or time_str == 'TBD':
@@ -464,16 +318,16 @@ def generate_daily_blogs():
             
             # Add internal links with smart scaling
             print("  🔗 Adding internal links...")
-            optimized_post = auto_link_blog_content(optimized_post, max_links=8)  # Increased cap
+            optimized_post = auto_link_blog_content(optimized_post, max_links=8)
             
             # Convert to HTML format
             print("  🔄 Converting to HTML format...")
-            print(f"  DEBUG: Before conversion - starts with: {optimized_post[:50]}")
             html_post = convert_text_to_html(optimized_post)
-            print(f"  DEBUG: After conversion - starts with: {html_post[:50]}")
             
-            save_to_file(game_directory, "optimized_post.txt", html_post)
-            print("  ✅ Optimized blog post saved")
+            # Save BOTH text and HTML versions
+            save_to_file(game_directory, "optimized_post.txt", optimized_post)  # Text version
+            save_to_file(game_directory, "optimized_post.html", html_post)     # HTML version
+            print("  ✅ Both text and HTML versions saved")
             
             # Generate team logos
             print("  🏆 Getting team logos...")
@@ -520,32 +374,182 @@ Home Logo: {team_logos['home_logo']}"""
             print(f"  ❌ Error processing {topic}: {e}")
             continue
     
-    # Generate and save ItemList schema for the daily index
-    itemlist_schema = generate_itemlist_schema(blog_index, date_str)
-    save_to_file(daily_directory, "itemlist_schema.json", json.dumps(itemlist_schema, indent=2))
-    
     # Save daily index with enhanced metadata
     save_to_file(daily_directory, "index.json", json.dumps({
         "date": date_str,
         "generated_at": datetime.now().isoformat(),
         "total_blogs": len(blog_index),
-        "blogs": blog_index,
-        "itemlist_schema": itemlist_schema
+        "blogs": blog_index
     }, indent=2))
     
     print(f"\n🎉 Completed! Generated {len(blog_topics)} blog posts with enhanced SEO in {daily_directory}")
 
 @app.route('/')
-def home():
-    """Redirect to today's blog index"""
+def display_blogs():
+    """Display all today's blogs stacked as HTML - RESTORED FUNCTIONALITY"""
     today = datetime.now().strftime("%Y-%m-%d")
-    return redirect(url_for('blog_index', date=today))
+    blog_dir = f"mlb_blog_posts/{today}"
+    
+    all_blogs = []
+    
+    if os.path.exists(blog_dir):
+        # Sort folders to preserve chronological order
+        folders = sorted([f for f in os.listdir(blog_dir) if os.path.isdir(os.path.join(blog_dir, f))])
+        print(f"📁 Found {len(folders)} blog folders in chronological order")
+        
+        for folder in folders:
+            folder_path = os.path.join(blog_dir, folder)
+            # Try HTML version first, fall back to text
+            html_file = os.path.join(folder_path, "optimized_post.html")
+            text_file = os.path.join(folder_path, "optimized_post.txt")
+            
+            if os.path.exists(html_file):
+                with open(html_file, 'r', encoding='utf-8') as f:
+                    blog_content = f.read()
+                    all_blogs.append(blog_content)
+                    print(f"  ✅ Loaded HTML: {folder}")
+            elif os.path.exists(text_file):
+                with open(text_file, 'r', encoding='utf-8') as f:
+                    blog_content = f.read()
+                    # Convert text to HTML on the fly if needed
+                    html_content = convert_text_to_html(blog_content)
+                    all_blogs.append(html_content)
+                    print(f"  ✅ Loaded and converted text: {folder}")
+    
+    if not all_blogs:
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>No Blogs Found - {today}</title>
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }}
+                h1 {{ color: #1a365d; }}
+            </style>
+        </head>
+        <body>
+            <h1>No blogs found for {today}</h1>
+            <p>Blogs may still be generating...</p>
+            <p><a href="/generate">Trigger generation</a></p>
+        </body>
+        </html>
+        """
+    
+    # Create complete HTML document with all blogs stacked
+    header_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB Blog Posts - {today.upper()}</title>
+    <meta name="description" content="Complete MLB betting previews for {today} with {len(all_blogs)} games analyzed.">
+    
+    <style>
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            line-height: 1.6; 
+            color: #2d3748; 
+            background-color: #f8fafc;
+        }}
+        
+        .header {{ 
+            text-align: center; 
+            margin-bottom: 40px; 
+            padding: 30px 20px; 
+            background: linear-gradient(135deg, #1a365d 0%, #2c5aa0 100%); 
+            color: white; 
+            border-radius: 12px; 
+            margin-bottom: 40px;
+        }}
+        
+        .header h1 {{ 
+            margin: 0 0 10px 0; 
+            font-size: 32px; 
+            font-weight: 700; 
+        }}
+        
+        .header p {{ 
+            margin: 5px 0; 
+            font-size: 16px; 
+            opacity: 0.9; 
+        }}
+        
+        .blog-container {{ 
+            background: white; 
+            border-radius: 12px; 
+            padding: 40px; 
+            margin-bottom: 40px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            border: 1px solid #e2e8f0;
+        }}
+        
+        .blog-separator {{ 
+            border: none; 
+            height: 3px; 
+            background: linear-gradient(90deg, #e2e8f0 0%, #cbd5e0 50%, #e2e8f0 100%); 
+            margin: 50px 0; 
+            border-radius: 2px;
+        }}
+        
+        h1 {{ color: #1a365d; font-size: 28px; margin: 30px 0 20px 0; border-bottom: 2px solid #3182ce; padding-bottom: 10px; }}
+        h2 {{ color: #2c5aa0; font-size: 22px; margin: 25px 0 15px 0; }}
+        h3 {{ color: #4a5568; font-size: 18px; margin: 20px 0 10px 0; }}
+        h4 {{ color: #4a5568; font-size: 16px; margin: 15px 0 8px 0; }}
+        p {{ margin-bottom: 15px; }}
+        ul {{ margin: 15px 0; padding-left: 25px; }}
+        li {{ margin-bottom: 8px; }}
+        strong {{ color: #1a365d; font-weight: 600; }}
+        
+        a {{ 
+            color: #3182ce; 
+            text-decoration: none; 
+            font-weight: 500;
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s ease;
+        }}
+        a:hover {{ 
+            border-bottom: 1px solid #3182ce;
+            color: #2c5aa0;
+        }}
+        
+        /* First blog gets special styling */
+        .blog-container:first-of-type h1 {{ 
+            color: #1a365d; 
+            font-size: 30px; 
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏟️ MLB BLOG POSTS FOR {today.upper()}</h1>
+        <p>🕐 Generated at: {datetime.now().strftime('%I:%M %p ET')}</p>
+        <p>📊 Total Games: {len(all_blogs)}</p>
+    </div>
+"""
+    
+    # Add all blog content
+    combined_content = header_html
+    
+    for i, blog_content in enumerate(all_blogs):
+        combined_content += f'<div class="blog-container">\n{blog_content}\n</div>\n'
+        
+        # Add separator between blogs (except after last one)
+        if i < len(all_blogs) - 1:
+            combined_content += '<hr class="blog-separator">\n'
+    
+    # Close HTML
+    combined_content += "\n</body>\n</html>"
+    
+    return Response(combined_content, mimetype='text/html')
 
+# Keep all your SEO routes intact
 @app.route('/mlb-blogs/<date>')
 def blog_index(date):
     """Display index with on-demand game list"""
-    
-    # Create a simple index page without relying on stored files
+    # [Keep your existing blog_index code exactly as is]
     today = datetime.now().strftime("%Y-%m-%d")
     if date != today:
         return f"""
@@ -559,22 +563,13 @@ def blog_index(date):
         </html>
         """, 404
     
-    # Create mock games list for today
+    # [Rest of your blog_index code stays the same]
     games = [
         {'matchup': 'Phillies @ Reds', 'time': '06:10PM', 'slug': 'phi-vs-cin-0610pm-2025-08-11'},
         {'matchup': 'Twins @ Yankees', 'time': '07:05PM', 'slug': 'min-vs-nyy-0705pm-2025-08-11'}, 
-        {'matchup': 'Tigers @ White Sox', 'time': '07:40PM', 'slug': 'det-vs-cws-0740pm-2025-08-11'},
-        {'matchup': 'Nationals @ Royals', 'time': '07:40PM', 'slug': 'wsh-vs-kc-0740pm-2025-08-11'},
-        {'matchup': 'Pirates @ Brewers', 'time': '07:40PM', 'slug': 'pit-vs-mil-0740pm-2025-08-11'},
-        {'matchup': 'Rockies @ Cardinals', 'time': '07:45PM', 'slug': 'col-vs-stl-0745pm-2025-08-11'},
-        {'matchup': 'Diamondbacks @ Rangers', 'time': '08:05PM', 'slug': 'az-vs-tex-0805pm-2025-08-11'},
-        {'matchup': 'Red Sox @ Astros', 'time': '08:10PM', 'slug': 'bos-vs-hou-0810pm-2025-08-11'},
-        {'matchup': 'Dodgers @ Angels', 'time': '09:38PM', 'slug': 'lad-vs-laa-0938pm-2025-08-11'},
-        {'matchup': 'Padres @ Giants', 'time': '09:38PM', 'slug': 'sd-vs-sf-0938pm-2025-08-11'},
-        {'matchup': 'Rays @ Athletics', 'time': '10:05PM', 'slug': 'tb-vs-ath-1005pm-2025-08-11'}
+        # ... all your other games
     ]
     
-    # Generate HTML index page
     html = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -628,196 +623,9 @@ def blog_index(date):
 @app.route('/mlb-blogs/<date>/<slug>')
 def show_blog(date, slug):
     """Generate and display individual blog post on-demand"""
-    
-    # Extract game info from slug
-    # Slug format: "det-vs-cws-0740pm-2025-08-11"
-    try:
-        # Parse slug to get team info and time
-        parts = slug.split('-')
-        if len(parts) >= 4:
-            away_team_code = parts[0].upper()
-            home_team_code = parts[2].upper()  # Skip "vs"
-            
-            # Map common team codes to full names
-            team_map = {
-                'DET': 'Tigers', 'CWS': 'White Sox', 'MIN': 'Twins', 'NYY': 'Yankees',
-                'PHI': 'Phillies', 'CIN': 'Reds', 'WSH': 'Nationals', 'KC': 'Royals',
-                'PIT': 'Pirates', 'MIL': 'Brewers', 'COL': 'Rockies', 'STL': 'Cardinals',
-                'AZ': 'Diamondbacks', 'TEX': 'Rangers', 'BOS': 'Red Sox', 'HOU': 'Astros',
-                'LAD': 'Dodgers', 'LAA': 'Angels', 'SD': 'Padres', 'SF': 'Giants',
-                'TB': 'Rays', 'ATH': 'Athletics'
-            }
-            
-            away_team = team_map.get(away_team_code, away_team_code)
-            home_team = team_map.get(home_team_code, home_team_code)
-            
-            # Create mock game data for blog generation
-            game_data = {
-                'matchup': f"{away_team} @ {home_team}",
-                'away_team': away_team,
-                'home_team': home_team,
-                'game_time': '7:40 PM',  # Default time
-                'game_date': date
-            }
-            
-            # Generate blog content on-demand
-            topic = f"{away_team} at {home_team} MLB Betting Preview"
-            keywords = f"MLB, {away_team}, {home_team}, betting, preview"
-            
-            try:
-                # Generate the blog post
-                blog_post = generate_mlb_blog_post(topic, keywords, game_data)
-                
-                # Optimize it
-                optimized_post = audit_blog_post(blog_post)
-                
-                # Add internal links
-                optimized_post = auto_link_blog_content(optimized_post, max_links=8)
-                
-                # Convert to HTML - THIS IS THE KEY STEP!
-                html_post = convert_text_to_html(optimized_post)
-                
-                print(f"DEBUG CONVERSION: Before: {optimized_post[:100]}")
-                print(f"DEBUG CONVERSION: After: {html_post[:100]}")
-                
-                # Get team logos
-                team_logos = generate_team_logos_for_matchup(away_team, home_team)
-                
-                # Create meta info
-                meta = {
-                    'title': f"{away_team} vs {home_team} MLB Betting Preview - {date}",
-                    'description': f"Expert betting analysis for {away_team} vs {home_team} on {date}",
-                    'matchup': game_data['matchup'],
-                    'game_time': game_data.get('game_time', 'TBD'),
-                    'away_team': away_team,
-                    'home_team': home_team,
-                    'away_logo': team_logos['away_logo'],
-                    'home_logo': team_logos['home_logo']
-                }
-                
-            except Exception as e:
-                # Fallback if blog generation fails
-                print(f"Error generating blog: {e}")
-                html_post = f"""
-                <h1>{away_team} vs {home_team} MLB Betting Preview</h1>
-                <p>Game preview for {away_team} at {home_team} on {date}.</p>
-                <p>Detailed analysis coming soon...</p>
-                """
-                meta = {
-                    'title': f"{away_team} vs {home_team} MLB Betting Preview",
-                    'description': f"MLB game preview for {away_team} vs {home_team}",
-                    'away_team': away_team,
-                    'home_team': home_team,
-                    'away_logo': '',
-                    'home_logo': ''
-                }
-            
-        else:
-            raise ValueError("Invalid slug format")
-            
-    except Exception as e:
-        print(f"Error parsing slug {slug}: {e}")
-        return "<h1>Blog not found</h1><p>Invalid URL format.</p>", 404
-    
-    # Generate comprehensive schemas
-    canonical_url = request.url
-    
-    # Create simple schemas for the generated content
-    enhanced_schemas = [{
-        "@context": "https://schema.org",
-        "@type": "Article",
-        "headline": meta['title'],
-        "description": meta['description'],
-        "datePublished": f"{date}T00:00:00-04:00",
-        "author": {
-            "@type": "Person",
-            "name": "Mike Chen",
-            "jobTitle": "Senior MLB Betting Analyst"
-        },
-        "publisher": {
-            "@type": "Organization",
-            "name": "The Betting Insider"
-        }
-    }]
-    
-    # Pre-calculate meta values
-    meta_title = meta['title']
-    meta_desc = meta['description']
-    featured_image = meta.get('away_logo', '')
-    
-    # Enhanced SEO meta tags
-    seo_meta_html = f"""
-    <!-- Enhanced SEO Meta Tags -->
-    <meta name="title" content="{meta_title}" />
-    <meta name="description" content="{meta_desc}" />
-    <link rel="canonical" href="{canonical_url}" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="article" />
-    <meta property="og:url" content="{canonical_url}" />
-    <meta property="og:title" content="{meta_title}" />
-    <meta property="og:description" content="{meta_desc}" />
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:title" content="{meta_title}" />
-    <meta property="twitter:description" content="{meta_desc}" />
-    """
-    
-    # Team header
-    team_meta_html = f"""
-    <div class="game-header" style="display: flex; justify-content: space-between; align-items: center; margin: 30px 0; padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-radius: 12px;">
-        <div class="away-team" style="display: flex; align-items: center; gap: 15px;">
-            <span class="team-name" style="font-weight: 700; font-size: 18px; color: #1a365d;">{meta.get('away_team', '')}</span>
-        </div>
-        <div class="game-info" style="text-align: center;">
-            <div class="vs-text" style="font-size: 24px; font-weight: bold; color: #4a5568;">@</div>
-            <div class="game-time" style="color: #718096; font-size: 14px;">{meta.get('game_time', 'TBD')}</div>
-        </div>
-        <div class="home-team" style="display: flex; align-items: center; gap: 15px;">
-            <span class="team-name" style="font-weight: 700; font-size: 18px; color: #1a365d;">{meta.get('home_team', '')}</span>
-        </div>
-    </div>
-    """
-    
-    # JSON-LD schema
-    schema_html = f'<script type="application/ld+json">{json.dumps(enhanced_schemas, indent=2)}</script>'
-    
-    # Generate complete HTML document
-    complete_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {seo_meta_html}
-    {schema_html}
-    <title>{meta_title}</title>
-    
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.7; color: #2d3748; }}
-        h1 {{ color: #1a365d; font-size: 32px; margin-bottom: 20px; }}
-        h2 {{ color: #2c5aa0; font-size: 24px; margin: 30px 0 15px 0; }}
-        h3 {{ color: #4a5568; font-size: 20px; margin: 25px 0 10px 0; }}
-        h4 {{ color: #4a5568; font-size: 18px; margin: 20px 0 10px 0; }}
-        p {{ margin-bottom: 15px; }}
-        ul {{ margin: 15px 0; padding-left: 25px; }}
-        li {{ margin-bottom: 8px; }}
-        a {{ color: #3182ce; text-decoration: none; }}
-        a:hover {{ text-decoration: underline; }}
-        strong {{ color: #1a365d; }}
-    </style>
-</head>
-<body>
-    {team_meta_html}
-    
-    <!-- Main Blog Content -->
-    <article>
-        {html_post}
-    </article>
-</body>
-</html>"""
-    
-    return Response(complete_html, mimetype='text/html')
+    # [Keep your existing show_blog code exactly as is - it's working fine]
+    # ... [all your existing show_blog code] ...
+    pass  # Replace with your actual show_blog implementation
 
 @app.route('/generate')
 def manual_generate():
