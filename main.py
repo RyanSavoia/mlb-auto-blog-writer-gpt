@@ -93,7 +93,52 @@ def parse_start_time_iso(local_time_str, tz_offset="-04:00"):
         print(f"parse_start_time_iso error for '{local_time_str}': {e}")
         return f"19:05:00{tz_offset}"
 
-def convert_text_to_html_with_seo(blog_text, game_data, team_logos=None):
+def simple_convert_with_seo(blog_text, game_data):
+    """SIMPLE converter like original + SEO features"""
+    if not blog_text:
+        return blog_text
+    
+    print(f"🔧 SIMPLE CONVERTER: Input length {len(blog_text)}")
+    
+    # Step 1: Basic HTML conversion (like original)
+    html_text = re.sub(r'\*([^*]+)\*', r'<strong>\1</strong>', blog_text)
+    
+    # Step 2: Convert line breaks to HTML
+    lines = html_text.split('\n')
+    html_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            html_lines.append('<br>')
+            continue
+            
+        # Main titles
+        if 'MLB Betting Preview' in line:
+            html_lines.append(f'<h1>{line}</h1>')
+        elif 'Game Time:' in line:
+            html_lines.append(f'<h2>{line}</h2>')
+        elif re.match(r'^\d+\.', line):
+            html_lines.append(f'<h2>{line}</h2>')
+        else:
+            html_lines.append(f'<p>{line}</p>')
+    
+    # Step 3: Add SEO schema (simple version)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    schema = f'''<script type="application/ld+json">{{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "{game_data['matchup']} MLB Betting Preview",
+        "datePublished": "{date_str}T00:00:00-04:00",
+        "author": {{"@type": "Person", "name": "Mike Chen"}},
+        "publisher": {{"@type": "Organization", "name": "The Betting Insider"}}
+    }}</script>'''
+    
+    result = schema + '\n' + '\n'.join(html_lines)
+    print(f"🔧 SIMPLE CONVERTER: Output length {len(result)}")
+    print(f"🔧 SIMPLE CONVERTER: Contains <h1>: {'<h1>' in result}")
+    
+    return result
     """Convert plain text to SEO-optimized HTML snippet - FIXED VERSION"""
     if not blog_text:
         return blog_text
@@ -377,11 +422,9 @@ def generate_daily_blogs():
                 print(f"  ⚠️ Logo generation failed: {logo_error}")
                 team_logos = None
             
-            # Convert to HTML with full SEO optimization
-            print("  🔄 Converting to SEO-optimized HTML...")
-            print(f"  🔧 INPUT to converter: '{optimized_post[:200]}...'")
-            html_post = convert_text_to_html_with_seo(optimized_post, game_data, team_logos)
-            print(f"  🔧 OUTPUT from converter: '{html_post[:200]}...'")
+            # Convert to HTML - USE SIMPLE VERSION
+            print("  🔄 Converting with SIMPLE converter...")
+            html_post = simple_convert_with_seo(optimized_post, game_data)
             print(f"  ✅ HTML generated: {len(html_post)} characters")
             
             save_to_file(game_directory, "optimized_post.html", html_post)
