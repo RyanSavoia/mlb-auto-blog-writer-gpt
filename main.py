@@ -674,8 +674,11 @@ def show_blog(date, slug):
                 # Add internal links
                 optimized_post = auto_link_blog_content(optimized_post, max_links=8)
                 
-                # Convert to HTML
+                # Convert to HTML - THIS IS THE KEY STEP!
                 html_post = convert_text_to_html(optimized_post)
+                
+                print(f"DEBUG CONVERSION: Before: {optimized_post[:100]}")
+                print(f"DEBUG CONVERSION: After: {html_post[:100]}")
                 
                 # Get team logos
                 team_logos = generate_team_logos_for_matchup(away_team, home_team)
