@@ -139,7 +139,7 @@ Write engaging, data-driven content for baseball fans and bettors."""
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt + "\n\nRETURN ONLY VALID JSON. Start your response with { and end with }. No explanatory text before or after."}
                 ],
                 max_tokens=4096,
                 temperature=0.7,
