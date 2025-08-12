@@ -175,10 +175,25 @@ def get_mlb_blog_post_prompt(topic, keywords, game_data):
         "Use at least 2 of these authoritative sources as inline citations "
         "(do not print this list verbatim; cite inline where relevant):\n" +
         "\n".join([
-            f'- {s["name"]} for {s["context"]}: <a href="{s["url"]}" target="_blank">{s["name"]}</a>'
+            f'- {s["name"]} for {s["context"]}: <a href="{s["url"]}" target="_blank" rel="nofollow">{s["name"]}</a>'
             for s in authority_sources
         ])
     )
+    
+    # Extract actual data values with fallbacks
+    game_time = game_data.get('game_time', 'data not available')
+    moneyline = game_data.get('moneyline') or game_data.get('betting_info', 'data not available')
+    
+    # Get pitcher info with fallbacks
+    away_pitcher = game_data.get('away_pitcher', {})
+    home_pitcher = game_data.get('home_pitcher', {})
+    away_pitcher_name = away_pitcher.get('name', 'Away Pitcher')
+    home_pitcher_name = home_pitcher.get('name', 'Home Pitcher')
+    away_arsenal = away_pitcher.get('arsenal', 'data not available')
+    home_arsenal = home_pitcher.get('arsenal', 'data not available')
+    
+    # Get umpire info
+    umpire_name = game_data.get('umpire', 'TBA')
     
     # Build the enhanced prompt
     prompt = f"""You are an expert MLB betting analyst. Write a comprehensive, unique preview that avoids template-like content.
@@ -195,28 +210,28 @@ CRITICAL: Return ONLY a JSON object with this exact structure:
 
 HTML STRUCTURE REQUIREMENTS:
 <h1>{topic}</h1>
-<p><strong>Game Time:</strong> [game_data.game_time or "data not available"] | <strong>Lines:</strong> [game_data.moneyline or game_data.betting_info or "data not available"]</p>
+<p><strong>Game Time:</strong> {game_time} | <strong>Lines:</strong> {moneyline}</p>
 <p>By MLB Analytics Team | Reviewed by Senior Baseball Analysts</p>
 
 <h2>{headers['intro']}</h2>
 <p>Set up the game in 2-3 sentences. Do not repeat game time or lines here.</p>
 
 <h2>{headers['pitchers']}</h2>
-<h3>[Away Pitcher] vs [Home Pitcher]</h3>
-<p><strong>[Away Pitcher]:</strong> List exact arsenal from away_pitcher.arsenal with usage% and mph.
-<strong>[Home Pitcher]:</strong> List exact arsenal from home_pitcher.arsenal with usage% and mph.</p>
+<h3>{away_pitcher_name} vs {home_pitcher_name}</h3>
+<p><strong>{away_pitcher_name}:</strong> {away_arsenal if away_arsenal != 'data not available' else 'Arsenal data not available'}</p>
+<p><strong>{home_pitcher_name}:</strong> {home_arsenal if home_arsenal != 'data not available' else 'Arsenal data not available'}</p>
 
 <h2>{headers['lineups']}</h2>  
 <h3>Projected xBA vs Arsenal</h3>
-<p>Show 2-3 biggest xBA changes from <code>away_key_performers</code> and <code>home_key_performers</code>. Format: "Name: .XXX → .XXX (+/-XX pts)"</p>
+<p>Show 2-3 biggest xBA changes from away_key_performers and home_key_performers if available. Format: "Name: .XXX → .XXX (+/-XX pts)". If data not available, write "xBA projections not available for this matchup."</p>
 
 <h2>{headers['strikeouts']}</h2>
 <h3>K-Rate Projections</h3> 
-<p>Arsenal K% vs season K% for both teams. Format: "Team: XX.X% vs Pitcher (±X.X% from season)"</p>
+<p>Arsenal K% vs season K% for both teams if data available. Format: "Team: XX.X% vs Pitcher (±X.X% from season)". If data not available, write "K-rate projections not available."</p>
 
 <h2>{headers['umpire']}</h2>
-<h3>Plate Umpire: [umpire name or "TBA"]</h3>
-<p>If data exists: Convert multipliers to % (1.11x = +11%). If TBA: mention uncertainty.</p>"""
+<h3>Plate Umpire: {umpire_name}</h3>
+<p>{"Convert multipliers to % (1.11x = +11%) if umpire impact data exists. If TBA or data not available, mention uncertainty in umpire assignment." if umpire_name != 'TBA' else "Umpire assignment TBA - impact on game dynamics uncertain."}</p>"""
 
     # Add unique angle sections (only once)
     for angle_prompt in unique_angle_prompts:
@@ -230,7 +245,7 @@ HTML STRUCTURE REQUIREMENTS:
 
     # Add FAQ structure (only once)
     for question in faq_questions:
-        prompt += f'<h3>{question}</h3>\n<p>[Provide specific answer based on game data and analysis]</p>\n'
+        prompt += f'<h3>{question}</h3>\n<p>Provide specific answer based on game data and analysis. If specific data not available, give general guidance.</p>\n'
 
     prompt += f"""
 BETTING ANALYSIS REQUIREMENTS:
@@ -242,7 +257,7 @@ BETTING ANALYSIS REQUIREMENTS:
 
 CONTENT QUALITY RULES:
 1. Each post must feel unique - vary analysis depth, focus areas, and insights
-2. Use specific data points and exact numbers from the JSON
+2. Use specific data points and exact numbers from the JSON when available
 3. Avoid generic phrases like "this should be a great game"
 4. Include methodology note: "Analysis based on xBA models and historical data. Do not bet based solely on this article."
 5. Must include at least 2 of these authority citations as inline links: {citation_requirement}
@@ -254,42 +269,10 @@ CONTENT QUALITY RULES:
    - If no strong edges exist: "No significant statistical edges meet our betting threshold"
 
 Target Keywords: {keywords}
-Game Data: {json.dumps(game_data, indent=2)}"""
+Available Game Data Fields: {list(game_data.keys())}"""
 
     return prompt
 
 def get_random_mlb_blog_post_prompt():
     """Legacy function - kept for backward compatibility"""
     return "Use get_mlb_blog_post_prompt(topic, keywords, game_data) instead"
-
-def validate_blog_post(html_content):
-    """Post-generation validator to ensure quality standards at scale"""
-    issues = []
-    
-    # Check for minimum 2 citations (look for <a href patterns)
-    citation_count = html_content.count('<a href=')
-    if citation_count < 2:
-        issues.append(f"Only {citation_count} citations found, need minimum 2")
-    
-    # Check FAQ count (4-6 questions)
-    faq_count = html_content.count('<h3>') - html_content.count('<h3>[')  # Exclude template placeholders
-    if faq_count < 4 or faq_count > 6:
-        issues.append(f"FAQ count is {faq_count}, should be 4-6")
-    
-    # Check Key Takeaways has exactly 3 sentences
-    takeaways_section = html_content.split('<h2>Key Takeaways</h2>')
-    if len(takeaways_section) > 1:
-        # Get the takeaways paragraph content
-        takeaways_content = takeaways_section[1].split('</p>')[0].split('<p>')[1] if '<p>' in takeaways_section[1] else ""
-        sentence_count = takeaways_content.count('.') - takeaways_content.count('...') # Exclude ellipses
-        if sentence_count != 3:
-            issues.append(f"Key Takeaways has {sentence_count} sentences, need exactly 3")
-    else:
-        issues.append("Key Takeaways section not found")
-    
-    return {
-        "valid": len(issues) == 0,
-        "issues": issues,
-        "citation_count": citation_count,
-        "faq_count": faq_count
-    }
