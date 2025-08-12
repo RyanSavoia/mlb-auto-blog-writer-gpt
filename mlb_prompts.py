@@ -125,35 +125,31 @@ def get_authority_sources():
     return random.sample(sources, num_sources)
 
 def build_unique_angle_prompts(game_data, unique_angles):
-    """Build prompts for unique angles based on available data"""
+    """Always include 2-3 angle sections with fallbacks when data is missing"""
     angle_prompts = []
     
-    # Team form analysis
-    if game_data.get('away_recent_form') or game_data.get('home_recent_form'):
-        angle_prompts.append(f"""
+    # Always include team form analysis
+    angle_prompts.append(f"""
 <h2>{unique_angles['team_form']}</h2>
-<p>Analyze recent team performance over the last 10 games using any available form data. Focus on offensive production, pitching effectiveness, and momentum heading into this matchup.</p>
+<p>If away_recent_form and home_recent_form fields are missing, write "Data not available for recent team form analysis." Otherwise: Analyze recent team performance over the last 10 games using the available form data. Focus on offensive production, pitching effectiveness, and momentum heading into this matchup.</p>
 """)
     
-    # Bullpen analysis  
-    if game_data.get('away_bullpen_usage') or game_data.get('home_bullpen_usage'):
-        angle_prompts.append(f"""
+    # Always include bullpen analysis
+    angle_prompts.append(f"""
 <h2>{unique_angles['bullpen_status']}</h2>
-<p>Examine bullpen workload and availability. Consider recent usage patterns and how fatigue might impact late-game scenarios.</p>
+<p>If bullpen usage fields are missing, write "Data not available for bullpen fatigue analysis." Otherwise: Examine bullpen workload and availability. Consider recent usage patterns and how fatigue might impact late-game scenarios.</p>
 """)
     
-    # Weather/situational factors
-    if game_data.get('weather') or game_data.get('ballpark_factors'):
-        angle_prompts.append(f"""
+    # Add situational factors
+    angle_prompts.append(f"""
 <h2>{unique_angles['situational']}</h2>
-<p>Evaluate environmental factors including weather conditions, ballpark dimensions, and any travel/rest advantages that could influence the outcome.</p>
+<p>If weather and ballpark_factors fields are missing, write "Data not available for environmental factors analysis." Otherwise: Evaluate environmental factors including weather conditions, ballpark dimensions, and any travel/rest advantages that could influence the outcome.</p>
 """)
-    
-    # L/R splits analysis
-    if game_data.get('away_vs_lhp') or game_data.get('away_vs_rhp'):
-        angle_prompts.append(f"""
+
+    # Add splits analysis
+    angle_prompts.append(f"""
 <h2>{unique_angles['splits']}</h2>
-<p>Break down how each team performs against left-handed vs right-handed pitching, highlighting key platoon advantages.</p>
+<p>If platoon splits data is missing, write "Data not available for platoon splits analysis." Otherwise: Analyze left/right handed matchup advantages for both teams' key hitters against opposing pitchers' arsenals.</p>
 """)
     
     return angle_prompts
@@ -170,68 +166,59 @@ def get_mlb_blog_post_prompt(topic, keywords, game_data):
     # Build unique angle sections
     unique_angle_prompts = build_unique_angle_prompts(game_data, unique_angles)
     
-    # Create citations requirement
-    citation_requirement = "Include these authoritative sources as inline citations:\n"
-    for source in authority_sources:
-        citation_requirement += f'- {source["name"]} for {source["context"]}: <a href="{source["url"]}" target="_blank">{source["name"]}</a>\n'
+    # Shuffle and cap at 3 for variety
+    random.shuffle(unique_angle_prompts)
+    unique_angle_prompts = unique_angle_prompts[:3]
+    
+    # Create citations requirement with improved instruction
+    citation_requirement = (
+        "Use at least 2 of these authoritative sources as inline citations "
+        "(do not print this list verbatim; cite inline where relevant):\n" +
+        "\n".join([
+            f'- {s["name"]} for {s["context"]}: <a href="{s["url"]}" target="_blank">{s["name"]}</a>'
+            for s in authority_sources
+        ])
+    )
     
     # Build the enhanced prompt
-    prompt = f"""You are an expert MLB betting analyst and blog writer. Create a comprehensive, unique analysis that avoids template-like content.
+    prompt = f"""You are an expert MLB betting analyst. Write a comprehensive, unique preview that avoids template-like content.
 
-CRITICAL OUTPUT FORMAT: Return your response as a JSON object with this exact structure:
+CRITICAL: Return ONLY a JSON object with this exact structure:
 {{
-    "html": "your full blog post HTML content here",
-    "meta_title": "SEO-optimized title (50-60 characters)",
-    "meta_description": "SEO description (140-160 characters)", 
-    "faq": [
-        {{"question": "Q1 text", "answer": "A1 text"}},
-        {{"question": "Q2 text", "answer": "A2 text"}}
-    ],
-    "citations": [
-        {{"source": "Source Name", "url": "https://..."}}
-    ],
-    "keywords": ["keyword1", "keyword2", "keyword3"]
+    "html": "your complete HTML blog post",
+    "meta_title": "SEO title 50-60 chars", 
+    "meta_desc": "SEO description 140-160 chars",
+    "faq": [{{"question": "Q text", "answer": "A text"}}],
+    "citations": [{{"source": "Source Name", "url": "https://url"}}],
+    "keywords": ["keyword1", "keyword2"]
 }}
 
-CONTENT REQUIREMENTS:
-
-STRUCTURE (Use proper semantic HTML):
+HTML STRUCTURE REQUIREMENTS:
 <h1>{topic}</h1>
-<p><strong>Game Time:</strong> [Extract from game_data.game_time] | <strong>Betting Lines:</strong> [Extract moneyline/spread from game_data]</p>
+<p><strong>Game Time:</strong> [game_data.game_time or "data not available"] | <strong>Lines:</strong> [game_data.moneyline or game_data.betting_info or "data not available"]</p>
+<p>By MLB Analytics Team | Reviewed by Senior Baseball Analysts</p>
 
 <h2>{headers['intro']}</h2>
-<p>2-3 sentences setting up the game. Include betting line from game_data. Echo the game time and moneyline exactly once here to prevent duplication.</p>
+<p>Set up the game in 2-3 sentences. Do not repeat game time or lines here.</p>
 
 <h2>{headers['pitchers']}</h2>
-<h3>Starting Pitcher Arsenal Analysis</h3>
+<h3>[Away Pitcher] vs [Home Pitcher]</h3>
+<p><strong>[Away Pitcher]:</strong> List exact arsenal from away_pitcher.arsenal with usage% and mph.
+<strong>[Home Pitcher]:</strong> List exact arsenal from home_pitcher.arsenal with usage% and mph.</p>
 
-<h4>[Away Pitcher] ([Away Team])</h4>
-<p>List ALL pitch types with EXACT percentages and velocities from away_pitcher.arsenal.
-Format: "Four-seam fastball (40% usage, 97.2 mph), Slider (30%, 84.1 mph), Changeup (20%, 89.3 mph)"
-Analysis: Pitcher style and how the opposing lineup projects against this specific arsenal mix.</p>
-
-<h4>[Home Pitcher] ([Home Team])</h4>
-<p>Same detailed format using home_pitcher.arsenal data.
-Include projected team performance against this pitcher's specific mix.</p>
-
-<h2>{headers['lineups']}</h2>
-<h3>Key Batting Matchups vs Arsenal</h3>
-<p>Focus on the 2-3 most significant xBA changes from away_key_performers and home_key_performers.
-Format: "Player Name: .XXX season BA → .XXX projected xBA vs arsenal (+/- XX points)"
-Only highlight changes of 15+ points to avoid noise.</p>
+<h2>{headers['lineups']}</h2>  
+<h3>Projected xBA vs Arsenal</h3>
+<p>Show 2-3 biggest xBA changes from <code>away_key_performers</code> and <code>home_key_performers</code>. Format: "Name: .XXX → .XXX (+/-XX pts)"</p>
 
 <h2>{headers['strikeouts']}</h2>
-<h3>Strikeout Rate Analysis</h3>
-<p>Compare arsenal-specific K-rates vs season averages using away_arsenal_k_pct and home_arsenal_k_pct data.
-Format: "[Team] projects to XX.X% strikeouts vs [Pitcher] - up/down X.X% from season average"</p>
+<h3>K-Rate Projections</h3> 
+<p>Arsenal K% vs season K% for both teams. Format: "Team: XX.X% vs Pitcher (±X.X% from season)"</p>
 
 <h2>{headers['umpire']}</h2>
-<h3>Home Plate Official Impact</h3>
-<p>ONLY if umpire data exists: Convert multipliers to percentages (1.11x = +11%).
-If umpire field is "TBA": mention assignment uncertainty.
-NEVER fabricate umpire tendencies - use only provided data.</p>"""
+<h3>Plate Umpire: [umpire name or "TBA"]</h3>
+<p>If data exists: Convert multipliers to % (1.11x = +11%). If TBA: mention uncertainty.</p>"""
 
-    # Add unique angle sections if data supports them
+    # Add unique angle sections (only once)
     for angle_prompt in unique_angle_prompts:
         prompt += angle_prompt
 
@@ -239,11 +226,10 @@ NEVER fabricate umpire tendencies - use only provided data.</p>"""
 <h2>Key Takeaways</h2>
 <p>Provide exactly 3 concise sentences summarizing the most important betting insights from your analysis. Focus on actionable information for bettors.</p>
 
-<h2>Frequently Asked Questions</h2>
-"""
+<h2>Frequently Asked Questions</h2>"""
 
-    # Add FAQ requirements
-    for i, question in enumerate(faq_questions, 1):
+    # Add FAQ structure (only once)
+    for question in faq_questions:
         prompt += f'<h3>{question}</h3>\n<p>[Provide specific answer based on game data and analysis]</p>\n'
 
     prompt += f"""
@@ -254,23 +240,56 @@ BETTING ANALYSIS REQUIREMENTS:
 - Only recommend when data strongly supports the lean
 - If no strong edges exist, state: "No significant statistical edges meet our betting threshold"
 
-CITATION REQUIREMENTS:
-{citation_requirement}
-
 CONTENT QUALITY RULES:
 1. Each post must feel unique - vary analysis depth, focus areas, and insights
 2. Use specific data points and exact numbers from the JSON
 3. Avoid generic phrases like "this should be a great game"
 4. Include methodology note: "Analysis based on xBA models and historical data. Do not bet based solely on this article."
-5. Add byline: "By MLB Analytics Team | Reviewed by Senior Baseball Analysts"
+5. Must include at least 2 of these authority citations as inline links: {citation_requirement}
+6. Use only fields present in game_data; if a field is missing, write "data not available" for that item. No guessing.
+7. If a unique-angle section lacks data, include one sentence: "Data not available for this section."
+8. BETTING CRITERIA - Only recommend when data meets exact thresholds:
+   - Batter props: arsenal_ba > 0.300 AND boost > +20 points  
+   - Strikeout props: K% > 25% AND increase > +4%
+   - If no strong edges exist: "No significant statistical edges meet our betting threshold"
 
 Target Keywords: {keywords}
-Current Game Data: {json.dumps(game_data, indent=2)}
-
-Remember: Return the complete response as a JSON object with html, meta_title, meta_description, faq, citations, and keywords fields."""
+Game Data: {json.dumps(game_data, indent=2)}"""
 
     return prompt
 
 def get_random_mlb_blog_post_prompt():
     """Legacy function - kept for backward compatibility"""
     return "Use get_mlb_blog_post_prompt(topic, keywords, game_data) instead"
+
+def validate_blog_post(html_content):
+    """Post-generation validator to ensure quality standards at scale"""
+    issues = []
+    
+    # Check for minimum 2 citations (look for <a href patterns)
+    citation_count = html_content.count('<a href=')
+    if citation_count < 2:
+        issues.append(f"Only {citation_count} citations found, need minimum 2")
+    
+    # Check FAQ count (4-6 questions)
+    faq_count = html_content.count('<h3>') - html_content.count('<h3>[')  # Exclude template placeholders
+    if faq_count < 4 or faq_count > 6:
+        issues.append(f"FAQ count is {faq_count}, should be 4-6")
+    
+    # Check Key Takeaways has exactly 3 sentences
+    takeaways_section = html_content.split('<h2>Key Takeaways</h2>')
+    if len(takeaways_section) > 1:
+        # Get the takeaways paragraph content
+        takeaways_content = takeaways_section[1].split('</p>')[0].split('<p>')[1] if '<p>' in takeaways_section[1] else ""
+        sentence_count = takeaways_content.count('.') - takeaways_content.count('...') # Exclude ellipses
+        if sentence_count != 3:
+            issues.append(f"Key Takeaways has {sentence_count} sentences, need exactly 3")
+    else:
+        issues.append("Key Takeaways section not found")
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues,
+        "citation_count": citation_count,
+        "faq_count": faq_count
+    }
