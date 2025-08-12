@@ -263,8 +263,8 @@ def display_blogs():
     combined_blogs += "\n" + "="*80 + "\n\n"
     combined_blogs += f"\n\n" + "="*80 + "\n\n".join(all_blogs)
     
-    # Return as plain text (EXACTLY LIKE YOUR ORIGINAL)
-    return Response(combined_blogs, mimetype='text/plain')
+    # Return as HTML (since GPT now generates HTML directly)
+    return Response(combined_blogs, mimetype='text/html')
 
 @app.route('/generate')
 def manual_generate():
