@@ -154,8 +154,23 @@ Write engaging, data-driven content for baseball fans and bettors."""
             content = response.choices[0].message.content
             
             try:
+                # Clean up markdown code blocks if present
+                clean_content = content.strip()
+                if clean_content.startswith('```json'):
+                    # Remove ```json from start and ``` from end
+                    clean_content = clean_content[7:]  # Remove ```json
+                    if clean_content.endswith('```'):
+                        clean_content = clean_content[:-3]  # Remove ```
+                elif clean_content.startswith('```'):
+                    # Remove ``` from start and end
+                    clean_content = clean_content[3:]
+                    if clean_content.endswith('```'):
+                        clean_content = clean_content[:-3]
+                
+                clean_content = clean_content.strip()
+                
                 # Attempt to parse as JSON
-                parsed_response = json.loads(content)
+                parsed_response = json.loads(clean_content)
                 
                 # Validate required fields
                 required_fields = ['html', 'meta_title', 'meta_desc', 'faq', 'citations', 'keywords']
