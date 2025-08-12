@@ -17,7 +17,6 @@ from bs4 import BeautifulSoup
 import pytz
 
 from generate_blog_post import generate_mlb_blog_post
-from audit_blog_post import audit_blog_post
 from generate_image import generate_team_logos_for_matchup
 from mlb_data_fetcher import MLBDataFetcher
 
@@ -102,7 +101,7 @@ def auto_link_blog_content_safe(html_content: str, max_links: int = 5) -> str:
             url = INTERLINK_MAP[phrase]
             
             # Find all text nodes that aren't inside links, headings, or script tags
-            for element in soup.find_all(text=True):
+            for element in soup.find_all(string=True):
                 if links_inserted >= max_links:
                     break
                     
@@ -393,9 +392,9 @@ def generate_daily_blogs():
                     # Looks like markdown, convert it
                     html_content = markdown(html_content)
                 
-                # Audit and optimize blog post
-                logger.info("Optimizing for readability...")
-                optimized_post = audit_blog_post(html_content)
+                # Skip audit step - use content directly
+                logger.info("Processing content...")
+                optimized_post = html_content
                 
                 # Add internal links safely
                 logger.info("Adding internal links...")
