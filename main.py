@@ -1,9 +1,9 @@
-# main.py (Original Working Version + SEO Content Optimizations)
+# main.py (Web Service Version)
 import os
 import threading
 import time
 import schedule
-from flask import Flask, Response
+from flask import Flask, Response, render_template, redirect, url_for
 from generate_blog_post import generate_mlb_blog_post
 from audit_blog_post import audit_blog_post
 from generate_image import generate_team_logos_for_matchup
@@ -12,17 +12,20 @@ import uuid
 import json
 from datetime import datetime
 import re
+from urllib.parse import quote
 
 app = Flask(__name__)
 
-# Internal linking phrase-to-URL mapping (SEO FEATURE)
+# Internal linking phrase-to-URL mapping
 INTERLINK_MAP = {
+    # Stats product
     "betting splits": "https://www.thebettinginsider.com/stats-about",
     "public money": "https://www.thebettinginsider.com/stats-about",
     "betting percentage": "https://www.thebettinginsider.com/stats-about",
     "sharp money": "https://www.thebettinginsider.com/stats-about",
     "betting trends": "https://www.thebettinginsider.com/stats-about",
     "stats dashboard": "https://www.thebettinginsider.com/stats-about",
+    # Pitcher arsenal tool
     "pitcher arsenal data": "https://www.thebettinginsider.com/daily-mlb-game-stats",
     "pitch mix": "https://www.thebettinginsider.com/daily-mlb-game-stats",
     "arsenal-specific performance": "https://www.thebettinginsider.com/daily-mlb-game-stats",
@@ -39,78 +42,136 @@ INTERLINK_MAP = {
 }
 
 def auto_link_blog_content(blog_text, max_links=5):
-    """Add internal links to blog content (SEO FEATURE)"""
+    """Automatically insert internal links into blog content"""
     if not blog_text or max_links <= 0:
         return blog_text
-    
-    words = len(blog_text.split())
-    dynamic_cap = min(max_links, max(2, words // 250))
     
     links_inserted = 0
     modified_text = blog_text
     
+    # Sort phrases by length (longest first) to avoid partial matching issues
     sorted_phrases = sorted(INTERLINK_MAP.keys(), key=len, reverse=True)
     
     for phrase in sorted_phrases:
-        if links_inserted >= dynamic_cap:
+        if links_inserted >= max_links:
             break
             
         url = INTERLINK_MAP[phrase]
-        pattern = r'(?<![A-Za-z0-9])' + re.escape(phrase) + r'(?![A-Za-z0-9])'
         
+        # Create regex pattern for whole word/phrase matching (case-insensitive)
+        # Use word boundaries to ensure we match complete phrases
+        pattern = r'\b' + re.escape(phrase) + r'\b'
+        
+        # Check if this phrase exists in the text and isn't already linked
         match = re.search(pattern, modified_text, re.IGNORECASE)
         if match:
+            # Check if the matched phrase is already inside an HTML link
             matched_text = match.group()
             start_pos = match.start()
             
+            # Look backwards from match to see if we're inside a link tag
             preceding_text = modified_text[:start_pos]
             last_link_start = preceding_text.rfind('<a ')
             last_link_end = preceding_text.rfind('</a>')
             
+            # If we're inside a link tag, skip this phrase
             if last_link_start > last_link_end:
                 continue
             
+            # Replace only the first occurrence with a link
             link_html = f'<a href="{url}">{matched_text}</a>'
             modified_text = re.sub(pattern, link_html, modified_text, count=1, flags=re.IGNORECASE)
             links_inserted += 1
+            
+            print(f"  🔗 Added internal link: '{matched_text}' -> {url}")
+    
+    if links_inserted > 0:
+        print(f"  ✅ Total internal links added: {links_inserted}")
     
     return modified_text
-
-def add_seo_content_enhancements(blog_text, game_data):
-    """Add SEO enhancements to content while keeping text format"""
-    
-    # Add schema markup as HTML comment (will be invisible in text display)
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    schema_comment = f'''<!-- 
-JSON-LD Schema for SEO:
-{{
-  "@context": "https://schema.org",
-  "@type": "Article",
-  "headline": "{game_data['matchup']} MLB Betting Preview - {date_str}",
-  "author": {{"@type": "Person", "name": "Mike Chen"}},
-  "publisher": {{"@type": "Organization", "name": "The Betting Insider"}},
-  "about": [
-    {{"@type": "SportsTeam", "name": "{game_data['away_team']}", "sport": "Baseball"}},
-    {{"@type": "SportsTeam", "name": "{game_data['home_team']}", "sport": "Baseball"}}
-  ]
-}}
--->'''
-    
-    # Add methodology footer for authority
-    methodology_footer = """
-
-📊 METHODOLOGY & SOURCES
-Analysis uses pitch-type performance, platoon splits, and contact-quality metrics (xBA, xSLG, whiff%) from advanced MLB data.
-Primary data source: Baseball Savant (baseballsavant.mlb.com)
-"""
-    
-    return schema_comment + '\n' + blog_text + methodology_footer
 
 def save_to_file(directory, filename, content):
     if not os.path.exists(directory):
         os.makedirs(directory)
     with open(os.path.join(directory, filename), 'w', encoding='utf-8') as file:
         file.write(content)
+
+def create_slug(matchup, game_time):
+    """Create SEO-friendly slug from matchup and time"""
+    # Clean the matchup: "Yankees @ Red Sox" -> "yankees-vs-red-sox"
+    slug = matchup.lower().replace(' @ ', '-vs-').replace(' ', '-')
+    
+    # Add time if available
+    if game_time and game_time != 'TBD':
+        try:
+            # Extract time like "7/8, 06:40PM" -> "640pm"
+            if ',' in game_time:
+                time_part = game_time.split(',')[1].strip()
+            else:
+                time_part = game_time.strip()
+            time_clean = time_part.lower().replace(':', '').replace(' ', '')
+            slug += f"-{time_clean}"
+        except:
+            pass
+    
+    # Remove special characters and ensure valid slug
+    slug = re.sub(r'[^a-z0-9\-]', '', slug)
+    slug = re.sub(r'-+', '-', slug)  # Multiple dashes -> single dash
+    return slug.strip('-')
+
+def generate_blog_schema(game_data, blog_content, slug, date_str):
+    """Generate JSON-LD schema for SEO"""
+    
+    # Extract title from blog content (first line or H1)
+    lines = blog_content.strip().split('\n')
+    title = lines[0] if lines else f"{game_data['matchup']} Preview"
+    if title.startswith('#'):
+        title = title.replace('#', '').strip()
+    
+    # Generate description from first paragraph
+    description = ""
+    for line in lines[1:]:
+        if line.strip() and not line.startswith('#'):
+            description = line.strip()[:160]
+            break
+    
+    if not description:
+        description = f"MLB game preview: {game_data['matchup']} on {game_data.get('game_date', date_str)}"
+    
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": title,
+        "description": description,
+        "datePublished": f"{date_str}T00:00:00Z",
+        "dateModified": f"{date_str}T00:00:00Z",
+        "author": {
+            "@type": "Organization",
+            "name": "MLB Blog Generator"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "MLB Blog Generator"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": f"/mlb-blogs/{date_str}/{slug}"
+        },
+        "articleSection": "Sports",
+        "keywords": f"MLB, {game_data['away_team']}, {game_data['home_team']}, baseball, preview",
+        "about": [
+            {
+                "@type": "SportsTeam",
+                "name": game_data['away_team']
+            },
+            {
+                "@type": "SportsTeam", 
+                "name": game_data['home_team']
+            }
+        ]
+    }
+    
+    return schema
 
 def parse_game_time_for_sorting(time_str):
     """Parse game time for proper chronological sorting"""
@@ -142,7 +203,7 @@ def parse_game_time_for_sorting(time_str):
         return 9999  # Sort unparseable times to end
 
 def generate_daily_blogs():
-    """Generate all blogs for today - ORIGINAL LOGIC + SEO CONTENT"""
+    """Generate all blogs for today with SEO metadata"""
     print(f"🚀 Starting daily blog generation at {datetime.now()}")
     
     # Initialize MLB data fetcher
@@ -155,7 +216,7 @@ def generate_daily_blogs():
         print("❌ No games available for blog generation")
         return
     
-    # Use proper time-based sorting instead of alphabetical
+    # Sort by game time
     print(f"🔄 Sorting {len(blog_topics)} games by time...")
     blog_topics.sort(key=lambda x: parse_game_time_for_sorting(x['game_data'].get('game_time', 'TBD')))
     
@@ -173,6 +234,8 @@ def generate_daily_blogs():
     
     print(f"🚀 Generating {len(blog_topics)} MLB blog posts for {date_str}")
     
+    blog_index = []  # Store metadata for index page
+    
     for i, blog_topic in enumerate(blog_topics, 1):
         topic = blog_topic['topic']
         keywords = blog_topic['keywords']
@@ -180,11 +243,9 @@ def generate_daily_blogs():
         
         print(f"\n📝 Processing game {i}/{len(blog_topics)}: {game_data['matchup']} at {game_data.get('game_time', 'TBD')}")
         
-        # Add time-based prefix to preserve order in filesystem
-        time_prefix = f"{i:02d}_"  # 01_, 02_, 03_, etc.
-        safe_matchup = game_data['matchup'].replace(' @ ', '_vs_').replace(' ', '_')
-        random_hash = uuid.uuid4().hex[:8]
-        game_directory = os.path.join(daily_directory, f"{time_prefix}{safe_matchup}_{random_hash}")
+        # Create SEO-friendly slug
+        slug = create_slug(game_data['matchup'], game_data.get('game_time'))
+        game_directory = os.path.join(daily_directory, slug)
         
         try:
             # Generate MLB-specific blog post
@@ -197,13 +258,12 @@ def generate_daily_blogs():
             print("  🔍 Optimizing for readability...")
             optimized_post = audit_blog_post(blog_post)
             
-            # ADD SEO ENHANCEMENTS TO CONTENT
-            print("  🔗 Adding SEO enhancements...")
-            optimized_post = auto_link_blog_content(optimized_post, max_links=8)
-            optimized_post = add_seo_content_enhancements(optimized_post, game_data)
+            # Add internal links
+            print("  🔗 Adding internal links...")
+            optimized_post = auto_link_blog_content(optimized_post)
             
             save_to_file(game_directory, "optimized_post.txt", optimized_post)
-            print("  ✅ SEO-optimized blog post saved")
+            print("  ✅ Optimized blog post saved")
             
             # Generate team logos
             print("  🏆 Getting team logos...")
@@ -221,6 +281,31 @@ Home Logo: {team_logos['home_logo']}"""
             save_to_file(game_directory, "image_url.txt", f"Away: {team_logos['away_logo']}\nHome: {team_logos['home_logo']}")
             print(f"  ✅ Team logos saved: {away_team} & {home_team}")
             
+            # Generate and save SEO schema
+            print("  🔍 Generating SEO schema...")
+            schema = generate_blog_schema(game_data, optimized_post, slug, date_str)
+            save_to_file(game_directory, "schema.json", json.dumps(schema, indent=2))
+            print("  ✅ SEO schema saved")
+            
+            # Create metadata for this blog
+            meta = {
+                "slug": slug,
+                "title": schema["headline"],
+                "description": schema["description"],
+                "matchup": game_data['matchup'],
+                "game_time": game_data.get('game_time', 'TBD'),
+                "away_team": game_data['away_team'],
+                "home_team": game_data['home_team'],
+                "away_logo": team_logos['away_logo'],
+                "home_logo": team_logos['home_logo'],
+                "url": f"/mlb-blogs/{date_str}/{slug}",
+                "generated_at": datetime.now().isoformat()
+            }
+            
+            save_to_file(game_directory, "meta.json", json.dumps(meta, indent=2))
+            blog_index.append(meta)
+            print("  ✅ Blog metadata saved")
+            
             # Save game data for reference
             save_to_file(game_directory, "game_data.json", json.dumps(game_data, indent=2))
             print("  ✅ Game data saved")
@@ -229,42 +314,192 @@ Home Logo: {team_logos['home_logo']}"""
             print(f"  ❌ Error processing {topic}: {e}")
             continue
     
+    # Save daily index
+    save_to_file(daily_directory, "index.json", json.dumps({
+        "date": date_str,
+        "generated_at": datetime.now().isoformat(),
+        "total_blogs": len(blog_index),
+        "blogs": blog_index
+    }, indent=2))
+    
     print(f"\n🎉 Completed! Generated {len(blog_topics)} blog posts in {daily_directory}")
 
 @app.route('/')
-def display_blogs():
-    """Display all today's blogs stacked on top of each other - ORIGINAL WORKING VERSION"""
+def home():
+    """Redirect to today's blog index"""
     today = datetime.now().strftime("%Y-%m-%d")
-    blog_dir = f"mlb_blog_posts/{today}"
+    return redirect(url_for('blog_index', date=today))
+
+@app.route('/mlb-blogs/<date>')
+def blog_index(date):
+    """Display index of all blogs for a specific date"""
+    blog_dir = f"mlb_blog_posts/{date}"
+    index_file = os.path.join(blog_dir, "index.json")
     
-    all_blogs = []
+    if not os.path.exists(index_file):
+        return f"""
+        <html>
+        <head><title>No Blogs Found - {date}</title></head>
+        <body>
+            <h1>No blogs found for {date}</h1>
+            <p>Blogs may still be generating...</p>
+            <p><a href="/generate">Trigger manual generation</a></p>
+        </body>
+        </html>
+        """, 404
     
-    if os.path.exists(blog_dir):
-        # Sort folders to preserve chronological order
-        folders = sorted([f for f in os.listdir(blog_dir) if os.path.isdir(os.path.join(blog_dir, f))])
-        print(f"📁 Found {len(folders)} blog folders in chronological order")
+    with open(index_file, 'r', encoding='utf-8') as f:
+        index_data = json.load(f)
+    
+    # Generate HTML index page
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>MLB Blog Posts - {date}</title>
+        <meta name="description" content="Daily MLB game previews and analysis for {date}. {index_data['total_blogs']} games covered.">
+        <style>
+            body {{ font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }}
+            .header {{ text-align: center; margin-bottom: 30px; }}
+            .game-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }}
+            .game-card {{ border: 1px solid #ddd; border-radius: 8px; padding: 20px; }}
+            .game-card:hover {{ box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+            .matchup {{ font-size: 18px; font-weight: bold; margin-bottom: 10px; }}
+            .game-time {{ color: #666; margin-bottom: 10px; }}
+            .teams {{ display: flex; align-items: center; gap: 10px; margin: 10px 0; }}
+            .team-logo {{ width: 30px; height: 30px; }}
+            .description {{ color: #555; line-height: 1.5; }}
+            .read-more {{ display: inline-block; margin-top: 10px; color: #007bff; text-decoration: none; }}
+            .read-more:hover {{ text-decoration: underline; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🏟️ MLB Blog Posts - {date}</h1>
+            <p>📊 {index_data['total_blogs']} games • 🕐 Generated at {index_data['generated_at'][:19].replace('T', ' ')}</p>
+        </div>
+        <div class="game-grid">
+    """
+    
+    for blog in index_data['blogs']:
+        html += f"""
+            <div class="game-card">
+                <div class="matchup">{blog['matchup']}</div>
+                <div class="game-time">⏰ {blog['game_time']}</div>
+                <div class="teams">
+                    <img src="{blog['away_logo']}" alt="{blog['away_team']}" class="team-logo" onerror="this.style.display='none'">
+                    <span>vs</span>
+                    <img src="{blog['home_logo']}" alt="{blog['home_team']}" class="team-logo" onerror="this.style.display='none'">
+                </div>
+                <div class="description">{blog['description']}</div>
+                <a href="{blog['url']}" class="read-more">Read Full Preview →</a>
+            </div>
+        """
+    
+    html += """
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
+
+@app.route('/mlb-blogs/<date>/<slug>')
+def show_blog(date, slug):
+    """Display individual blog post with SEO schema"""
+    folder_path = f"mlb_blog_posts/{date}/{slug}"
+    file_path = os.path.join(folder_path, "optimized_post.txt")
+    schema_path = os.path.join(folder_path, "schema.json")
+    meta_path = os.path.join(folder_path, "meta.json")
+    
+    if not os.path.exists(file_path):
+        return "<h1>Blog not found</h1>", 404
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        blog_content = f.read()
+    
+    schema = {}
+    if os.path.exists(schema_path):
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            schema = json.load(f)
+    
+    meta = {}
+    if os.path.exists(meta_path):
+        with open(meta_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+    
+    # Convert markdown-style content to HTML
+    html_content = blog_content.replace('\n\n', '</p><p>').replace('\n', '<br>')
+    html_content = f"<p>{html_content}</p>"
+    
+    # Handle headers
+    html_content = re.sub(r'<p># (.*?)</p>', r'<h1>\1</h1>', html_content)
+    html_content = re.sub(r'<p>## (.*?)</p>', r'<h2>\1</h2>', html_content)
+    html_content = re.sub(r'<p>### (.*?)</p>', r'<h3>\1</h3>', html_content)
+    
+    # Generate full HTML page
+    title = schema.get('headline', meta.get('title', f"MLB: {meta.get('matchup', 'Game Preview')}"))
+    description = schema.get('description', meta.get('description', ''))
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{title}</title>
+        <meta name="description" content="{description}">
+        <link rel="canonical" href="/mlb-blogs/{date}/{slug}">
+        <style>
+            body {{ font-family: Georgia, serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }}
+            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
+            h2 {{ color: #34495e; margin-top: 30px; }}
+            .meta {{ background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            .teams {{ display: flex; align-items: center; gap: 15px; margin: 20px 0; }}
+            .team {{ display: flex; align-items: center; gap: 10px; }}
+            .team-logo {{ width: 40px; height: 40px; }}
+            .back-link {{ margin: 20px 0; }}
+            .back-link a {{ color: #3498db; text-decoration: none; }}
+            .back-link a:hover {{ text-decoration: underline; }}
+        </style>
+        <script type="application/ld+json">
+        {json.dumps(schema, indent=2) if schema else '{}'}
+        </script>
+    </head>
+    <body>
+        <div class="back-link">
+            <a href="/mlb-blogs/{date}">← Back to {date} Games</a>
+        </div>
         
-        for folder in folders:
-            folder_path = os.path.join(blog_dir, folder)
-            optimized_file = os.path.join(folder_path, "optimized_post.txt")
-            if os.path.exists(optimized_file):
-                with open(optimized_file, 'r', encoding='utf-8') as f:
-                    blog_content = f.read()
-                    all_blogs.append(blog_content)
-                    print(f"  ✅ Loaded: {folder}")
+        <div class="meta">
+            <div class="teams">
+                <div class="team">
+                    <img src="{meta.get('away_logo', '')}" alt="{meta.get('away_team', '')}" class="team-logo" onerror="this.style.display='none'">
+                    <strong>{meta.get('away_team', '')}</strong>
+                </div>
+                <span>@</span>
+                <div class="team">
+                    <img src="{meta.get('home_logo', '')}" alt="{meta.get('home_team', '')}" class="team-logo" onerror="this.style.display='none'">
+                    <strong>{meta.get('home_team', '')}</strong>
+                </div>
+            </div>
+            <div>🕐 Game Time: {meta.get('game_time', 'TBD')}</div>
+        </div>
+        
+        <article>
+            {html_content}
+        </article>
+        
+        <div class="back-link">
+            <a href="/mlb-blogs/{date}">← Back to {date} Games</a>
+        </div>
+    </body>
+    </html>
+    """
     
-    if not all_blogs:
-        return f"<h1>No blogs found for {today}</h1><p>Blogs may still be generating...</p>"
-    
-    # Stack all blogs with separators - EXACTLY LIKE ORIGINAL
-    combined_blogs = f"📅 MLB BLOG POSTS FOR {today.upper()}\n"
-    combined_blogs += f"🕐 Generated at: {datetime.now().strftime('%I:%M %p ET')}\n"
-    combined_blogs += f"📊 Total Games: {len(all_blogs)}\n"
-    combined_blogs += "\n" + "="*80 + "\n\n"
-    combined_blogs += f"\n\n" + "="*80 + "\n\n".join(all_blogs)
-    
-    # Return as HTML (since GPT now generates HTML directly)
-    return Response(combined_blogs, mimetype='text/html')
+    return html
 
 @app.route('/generate')
 def manual_generate():
