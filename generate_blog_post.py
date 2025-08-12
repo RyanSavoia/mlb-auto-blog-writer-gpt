@@ -117,6 +117,8 @@ def generate_mlb_blog_post_with_retries(topic: str, keywords: List[str], game_da
     # Enhanced system prompt with strict requirements
     system_prompt = """You are a professional MLB betting analyst and blog writer who specializes in pitcher-batter matchups and umpire analysis.
 
+CRITICAL: Your response MUST be valid JSON only. Do not include any text before or after the JSON.
+
 STRICT REQUIREMENTS:
 1. Heading hierarchy only: <h1> title, <h2> sections, <h3> subsections.
 2. Include a "Key Takeaways" section with exactly 3 concise sentences (not bullets).
@@ -185,13 +187,12 @@ def create_fallback_response(content: str, topic: str) -> dict:
     """Create a structured response when JSON parsing fails"""
     
     # Extract FAQ if present
-    faq = []
-    if "FAQ" in content or "Frequently Asked" in content:
-        # Simple extraction - can be improved
-        faq = [
-            {"question": "What should I consider before betting?", "answer": "Always do your own research and bet responsibly."},
-            {"question": "How accurate are these predictions?", "answer": "These are analytical insights, not guarantees. Past performance doesn't predict future results."}
-        ]
+    faq = [
+        {"question": "What should I consider before betting?", "answer": "Always do your own research and bet responsibly."},
+        {"question": "How accurate are these predictions?", "answer": "These are analytical insights, not guarantees. Past performance doesn't predict future results."},
+        {"question": "What factors influence this matchup?", "answer": "Key factors include pitcher performance, recent team form, weather conditions, and historical head-to-head records."},
+        {"question": "Where can I find more MLB analysis?", "answer": "Check out our daily MLB coverage and statistical breakdowns for comprehensive game analysis."}
+    ]
     
     # Extract citations if present
     citations = []
