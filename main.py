@@ -41,7 +41,11 @@ def before_request():
 
 class RequestIdFilter(logging.Filter):
     def filter(self, record):
-        record.request_id = getattr(request, 'request_id', 'system')
+        try:
+            record.request_id = getattr(request, 'request_id', 'system')
+        except RuntimeError:
+            # Handle startup/no request context
+            record.request_id = 'system'
         return True
 
 # Add filter to all handlers
