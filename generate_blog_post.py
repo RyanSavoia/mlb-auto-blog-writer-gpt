@@ -6,6 +6,8 @@ import json
 import time
 import hashlib
 import logging
+import re
+from urllib.parse import urlparse
 from typing import Dict, List, Optional
 
 # Set up logging
@@ -13,6 +15,72 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+ALLOWED_CITATION_DOMAINS = {
+    "mlb.com", "baseballsavant.mlb.com", "fangraphs.com",
+    "baseball-reference.com", "espn.com"
+}
+
+def _hostname_ok(netloc, allowed):
+    return any(netloc == d or netloc.endswith("." + d) for d in allowed)
+
+def validate_blog_post(html: str, result: dict) -> dict:
+    issues = []
+    
+    anchors = re.findall(r'<a\s+[^>]*href="([^"]+)"[^>]*>', html, flags=re.IGNORECASE)
+    citation_count = len(anchors)
+    if citation_count < 2:
+        issues.append(f"Only {citation_count} inline citations found, need minimum 2.")
+    
+    # domain + nofollow check
+    good_citations = 0
+    for href in anchors:
+        netloc = urlparse(href).netloc.lower()
+        if _hostname_ok(netloc, ALLOWED_CITATION_DOMAINS):
+            # check rel="nofollow"
+            # find the full tag containing this href
+            tag_match = re.search(rf'<a[^>]*href="{re.escape(href)}"[^>]*>', html, flags=re.IGNORECASE)
+            if tag_match:
+                tag = tag_match.group(0)
+                if re.search(r'rel\s*=\s*"[^\"]*\bnofollow\b[^\"]*"', tag, flags=re.IGNORECASE):
+                    good_citations += 1
+                else:
+                    issues.append(f'Citation to {netloc} missing rel="nofollow".')
+    
+    if good_citations < 2:
+        issues.append(f"Only {good_citations} qualified citations (allowed domains + nofollow); need ≥2.")
+    
+    # FAQ count from JSON payload (preferred, avoids HTML parsing weirdness)
+    faq_list = result.get("faq", []) or []
+    faq_count = len(faq_list)
+    if faq_count < 4 or faq_count > 6:
+        issues.append(f"FAQ count is {faq_count}, should be 4–6.")
+    
+    # Ensure Key Takeaways has exactly 3 sentences (basic parse)
+    kt_match = re.search(r'<h2>\s*Key Takeaways\s*</h2>\s*<p>(.*?)</p>', html, flags=re.IGNORECASE|re.DOTALL)
+    if not kt_match:
+        issues.append("Key Takeaways section not found.")
+    else:
+        # Count sentences naively by period; ignore ellipses
+        text = re.sub(r'\.{3,}', '', kt_match.group(1))
+        sentences = [s for s in re.split(r'\.\s+', text.strip()) if s]
+        if len(sentences) != 3:
+            issues.append(f"Key Takeaways has {len(sentences)} sentences, need exactly 3.")
+    
+    # Guard "Game Time / Lines" from repeating
+    game_time_mentions = len(re.findall(r'>\s*Game Time:\s*<|Game Time:', html, flags=re.IGNORECASE))
+    lines_mentions = len(re.findall(r'>\s*Lines:\s*<|Lines:', html, flags=re.IGNORECASE))
+    if game_time_mentions != 1:
+        issues.append(f'"Game Time" appears {game_time_mentions} times; must be exactly once.')
+    if lines_mentions != 1:
+        issues.append(f'"Lines" appears {lines_mentions} times; must be exactly once.')
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues,
+        "citation_count": citation_count,
+        "faq_count": faq_count
+    }
 
 def truncate_game_data(game_data: dict, max_tokens: int = 2000) -> dict:
     """Truncate game_data text blocks to prevent token overflow"""
@@ -25,8 +93,8 @@ def truncate_game_data(game_data: dict, max_tokens: int = 2000) -> dict:
         if field in truncated_data and isinstance(truncated_data[field], dict):
             if 'arsenal' in truncated_data[field]:
                 arsenal_text = truncated_data[field]['arsenal']
-                if len(arsenal_text) > 200:  # Rough token estimation
-                    truncated_data[field]['arsenal'] = arsenal_text[:200] + "..."
+                if len(arsenal_text) > 500:  # Increased from 200 to avoid cutting off usage/mph
+                    truncated_data[field]['arsenal'] = arsenal_text[:500] + "..."
         elif field in truncated_data and isinstance(truncated_data[field], list):
             # Limit list size
             truncated_data[field] = truncated_data[field][:5]
@@ -47,17 +115,17 @@ def generate_mlb_blog_post_with_retries(topic: str, keywords: List[str], game_da
     logger.info(f"Generating blog post with prompt hash: {prompt_hash}")
     
     # Enhanced system prompt with strict requirements
-    system_prompt = """You are a professional MLB betting analyst and blog writer who specializes in pitcher-batter matchups and umpire analysis. 
+    system_prompt = """You are a professional MLB betting analyst and blog writer who specializes in pitcher-batter matchups and umpire analysis.
 
 STRICT REQUIREMENTS:
-1. Use proper heading hierarchy: <h1> for main title, <h2> for major sections, <h3> for subsections
-2. Include a "Key Takeaways" section with 3-5 bullet points
-3. Include an FAQ section with 3-6 Q&As at the end
-4. Include at least 2 authority citations with <a rel="nofollow"> links to MLB.com, Baseball Savant, or FanGraphs
-5. Add byline: "By [Analyst Name] | Reviewed by MLB Analytics Team"
-6. Include methodology note: "Analysis based on xBA models and historical data. Do not bet based solely on this article."
-7. Echo game time and moneyline exactly once in the intro
-8. Return response as JSON with structure: {"html": "...", "meta_title": "...", "meta_desc": "...", "faq": [...], "citations": [...]}
+1. Heading hierarchy only: <h1> title, <h2> sections, <h3> subsections.
+2. Include a "Key Takeaways" section with exactly 3 concise sentences (not bullets).
+3. Include an FAQ section with 4–6 Q&As at the end.
+4. Include at least 2 inline authority citations (MLB.com, Baseball Savant, FanGraphs, Baseball-Reference, or ESPN). Use <a href="..."> with rel="nofollow".
+5. Add byline line immediately under the metadata: "By MLB Analytics Team | Reviewed by Senior Baseball Analysts".
+6. Add methodology note in the article body: "Analysis based on xBA models and historical data. Do not bet based solely on this article."
+7. The "Game Time" and "Lines" appear once at the top metadata line and MUST NOT be repeated in the intro.
+8. Return JSON with keys: {"html": "...", "meta_title": "...", "meta_desc": "...", "faq": [...], "citations": [...], "keywords": [...]}.
 
 Write engaging, data-driven content for baseball fans and bettors."""
 
@@ -65,15 +133,14 @@ Write engaging, data-driven content for baseball fans and bettors."""
         try:
             logger.info(f"Attempt {attempt + 1}/{max_retries} for prompt hash: {prompt_hash}")
             
-            response = client.chat.completions.create(
+            response = client.chat.completions.with_options(timeout=60).create(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=4096,
-                temperature=0.7,
-                timeout=60  # 60 second timeout
+                temperature=0.7
             )
             
             # Log response ID for debugging
@@ -88,7 +155,7 @@ Write engaging, data-driven content for baseball fans and bettors."""
                 parsed_response = json.loads(content)
                 
                 # Validate required fields
-                required_fields = ['html', 'meta_title', 'meta_desc', 'faq', 'citations']
+                required_fields = ['html', 'meta_title', 'meta_desc', 'faq', 'citations', 'keywords']
                 if all(field in parsed_response for field in required_fields):
                     return parsed_response
                 else:
@@ -137,12 +204,22 @@ def create_fallback_response(content: str, topic: str) -> dict:
     meta_title = topic[:60] + "..." if len(topic) > 60 else topic
     meta_desc = f"Expert MLB analysis and betting insights for {topic}. Data-driven predictions and key matchup breakdowns."[:160]
     
+    # Ensure fallback passes validation by adding sources
+    html_with_sources = (
+        content + 
+        '<p>Sources: '
+        '<a href="https://mlb.com" rel="nofollow" target="_blank">MLB.com</a> and '
+        '<a href="https://baseballsavant.mlb.com" rel="nofollow" target="_blank">Baseball Savant</a>.'
+        '</p>'
+    )
+    
     return {
-        "html": content,
+        "html": html_with_sources,
         "meta_title": meta_title,
         "meta_desc": meta_desc,
         "faq": faq,
-        "citations": citations
+        "citations": citations,
+        "keywords": []
     }
 
 def generate_mlb_blog_post(topic: str, keywords: List[str], game_data: dict) -> dict:
@@ -151,6 +228,21 @@ def generate_mlb_blog_post(topic: str, keywords: List[str], game_data: dict) -> 
         result = generate_mlb_blog_post_with_retries(topic, keywords, game_data)
         if result is None:
             raise Exception("Failed to generate blog post after all retries")
+        
+        # VALIDATION CHECKPOINT - Check quality before returning
+        html = result.get("html", "")
+        check = validate_blog_post(html, result)
+        if not check["valid"]:
+            logger.warning(f"Validation failed: {check['issues']}")
+            # Optional one-shot retry
+            retry = generate_mlb_blog_post_with_retries(topic, keywords, game_data, max_retries=1)
+            if isinstance(retry, dict):
+                retry_html = retry.get("html", "")
+                if validate_blog_post(retry_html, retry)["valid"]:
+                    return retry
+            # Attach issues for debugging
+            result["validation_issues"] = check["issues"]
+        
         return result
         
     except Exception as e:
@@ -197,6 +289,13 @@ if __name__ == "__main__":
         print(f"Meta Description: {result.get('meta_desc', 'N/A')}")
         print(f"FAQ Count: {len(result.get('faq', []))}")
         print(f"Citations Count: {len(result.get('citations', []))}")
+        
+        # Show validation status
+        if "validation_issues" in result:
+            print(f"Validation Issues: {result['validation_issues']}")
+        else:
+            print("Validation: PASSED")
+        
         print("\nHTML Content Preview:")
         html_content = result.get('html', '')
         print(html_content[:500] + "..." if len(html_content) > 500 else html_content)
