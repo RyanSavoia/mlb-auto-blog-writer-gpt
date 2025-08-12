@@ -253,7 +253,8 @@ def generate_mlb_blog_post(topic: str, keywords: List[str], game_data: dict) -> 
             "meta_title": f"Error - {topic}",
             "meta_desc": "Content generation temporarily unavailable.",
             "faq": [],
-            "citations": []
+            "citations": [],
+            "keywords": []
         }
 
 # Keep the original function for backward compatibility
