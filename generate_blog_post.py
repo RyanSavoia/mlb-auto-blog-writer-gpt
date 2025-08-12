@@ -133,14 +133,15 @@ Write engaging, data-driven content for baseball fans and bettors."""
         try:
             logger.info(f"Attempt {attempt + 1}/{max_retries} for prompt hash: {prompt_hash}")
             
-            response = client.chat.completions.with_options(timeout=60).create(
+            response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=4096,
-                temperature=0.7
+                temperature=0.7,
+                timeout=60
             )
             
             # Log response ID for debugging
