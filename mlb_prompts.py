@@ -239,7 +239,7 @@ HTML STRUCTURE REQUIREMENTS:
 
     prompt += f"""
 <h2>Key Takeaways</h2>
-<p>Provide exactly 3 concise sentences summarizing the most important betting insights from your analysis. Focus on actionable information for bettors.</p>
+<p>Write EXACTLY 3 sentences summarizing the most important betting insights. No more, no less. Focus on actionable information for bettors.</p>
 
 <h2>Frequently Asked Questions</h2>"""
 
@@ -261,7 +261,8 @@ CONTENT QUALITY RULES:
 3. Avoid generic phrases like "this should be a great game"
 4. Include methodology note: "Analysis based on xBA models and historical data. Do not bet based solely on this article."
 5. Must include at least 2 of these authority citations as inline links: {citation_requirement}
-6. Use only fields present in game_data; if a field is missing, write "data not available" for that item. No guessing.
+6. CRITICAL: Every article must include exactly 2 inline citations from the authority sources listed above. Use <a href="URL" rel="nofollow" target="_blank">Source Name</a> format within your content paragraphs.
+7. Use only fields present in game_data; if a field is missing, write "data not available" for that item. No guessing.
 7. If a unique-angle section lacks data, include one sentence: "Data not available for this section."
 8. BETTING CRITERIA - Only recommend when data meets exact thresholds:
    - Batter props: arsenal_ba > 0.300 AND boost > +20 points  
